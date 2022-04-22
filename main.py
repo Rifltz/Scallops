@@ -6,6 +6,7 @@ loljson = open("why.json", "r")
 saveData = json.loads(loljson.read())
 loljson.close()
 
+pygame.init()
 WIDTH = 1024
 HEIGHT = 768
 
@@ -62,7 +63,8 @@ menu_button = button((450, 180), (250, 50), (21, 35, 56), (218, 224, 232))
 
 def draw():
   screen.fill((194, 212, 242))
-  screen.draw.rect(menu_button.draw, menu_button.c_active)
+  screen.draw.filled_rect(menu_button.draw, menu_button.c_active)
+
 
 def update():
     main_menu()
@@ -98,6 +100,4 @@ def settings():
 def bob():
     pass
 
-
 pgzrun.go()
-#raise Exception("Lol this will be so evil")
