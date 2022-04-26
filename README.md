@@ -23,3 +23,4 @@ Do them later
 - [JSON in Python](https://www.w3schools.com/python/python_json.asp)
 - [File Handling](https://www.w3schools.com/python/python_file_open.asp)
 - [Replit Config](https://docs.replit.com/programming-ide/configuring-repl)
+- [Superior Documentation](https://devdocs.io/pygame/)
