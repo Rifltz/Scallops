@@ -139,6 +139,8 @@ def on_mouse_down(button, pos):
         for i in [back_button]:
             if i.hovering:
                 current_screen = i.press(current_screen)
+    if current_screen == "quit":
+        clock.schedule(quitting, 2.0)
 
 def on_key_down(key):
     print(repr(key))
@@ -176,6 +178,17 @@ def settings(mouse_pos, screen):
 def settings_draw():
     back_button.show()
 
+def close_game(mouse_pos, screen):
+    pass
+
+def close_game_draw():
+    error_message = font.render("Haha lol", True, WHITE)
+    x, y = error_message.get_size()
+    screen.blit(error_message, ((WIDTH - x)/2, (HEIGHT - y)/2))
+
+def quitting():
+    pygame.display.quit()
+
 def bob():
     pass
 
@@ -183,18 +196,21 @@ update_dict = {
     "main_menu": main_menu,
     "new_game": new_game,
     "cont_game": cont_game,
-    "settings": settings
+    "settings": settings,
+    "quit": close_game
 }
 
 draw_dict = {
     "main_menu": main_menu_draw,
     "new_game": new_game_draw,
     "cont_game": cont_game_draw,
-    "settings": settings_draw
+    "settings": settings_draw,
+    "quit": close_game_draw
 }
 
 def update():
     mouse_pos = pygame.mouse.get_pos()
+
     update_dict[current_screen](mouse_pos, current_screen)
 
 def draw():
