@@ -1,11 +1,20 @@
 import json, os
 import pygame, pgzrun
+from new_game import *
 
 #Open json files
-loljson = open("why.json", "r")
-saveData = json.loads(loljson.read())
-loljson.close()
+flagjson = open("flag.json", "r")
+globalSD = json.loads(flagjson.read())
+flagjson.close()
 
+saveData = []
+for file_name in os.listdir("save"):
+    print(file_name)
+    save = open("save\\" + file_name, "r")
+    saveData.append(json.loads(save.read()))
+    save.close()
+
+print(saveData)
 pygame.init()
 WIDTH = 1024
 HEIGHT = 768
@@ -18,6 +27,7 @@ MAIN_PRIMARY = (21, 35, 56)
 MAIN_SECONDARY = (218, 224, 232)
 
 current_screen = "main_menu"
+current_colour = (194, 212, 242)
 
 class button():
     """
@@ -106,8 +116,14 @@ class button():
         Returns:
             screen (str): the new screen to begin displaying"""
         screen = self.dest
-        print("huh?", screen)
         return screen
+
+class Therese(pygame.sprite.sprite):
+    def __init__(self, image, width, height):
+        pygame.sprite.Sprite.__init__(self)
+
+        self.image
+
 
 new_game_button = button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game")
 cont_game_button = button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game")
@@ -122,10 +138,8 @@ def on_mouse_down(button, pos):
 
     if current_screen == "main_menu":
         for i in [new_game_button, cont_game_button, settings_button, quit_button]:
-            print(i)
             if i.hovering:
                 current_screen = i.press(current_screen)
-                print("Click on", str(i))
                 break
     elif current_screen == "new_game":
         print("new game called")
@@ -140,13 +154,12 @@ def on_mouse_down(button, pos):
             if i.hovering:
                 current_screen = i.press(current_screen)
     if current_screen == "quit":
-        clock.schedule(quitting, 2.0)
+        clock.schedule(quitting, 1.0)
 
 def on_key_down(key):
     print(repr(key))
     if key == keys.ESCAPE:
         pygame.display.quit()
-        print("yes")
 
 def main_menu(mouse_pos, screen):
     new_game_button.animate(mouse_pos)
@@ -160,11 +173,7 @@ def main_menu_draw():
     settings_button.show()
     quit_button.show()
 
-def new_game(mouse_pos, screen):
-    pass
-
-def new_game_draw():
-    pass
+    return (194, 212, 242) #Bluish shade
 
 def cont_game(mouse_pos, screen):
     back_button.animate(mouse_pos)
@@ -172,11 +181,15 @@ def cont_game(mouse_pos, screen):
 def cont_game_draw():
     back_button.show()
 
+    return (199, 177, 143) #Wood brown
+
 def settings(mouse_pos, screen):
     back_button.animate(mouse_pos)
 
 def settings_draw():
     back_button.show()
+
+    return (143, 102, 79) #Earth brown
 
 def close_game(mouse_pos, screen):
     pass
@@ -185,6 +198,8 @@ def close_game_draw():
     error_message = font.render("Haha lol", True, WHITE)
     x, y = error_message.get_size()
     screen.blit(error_message, ((WIDTH - x)/2, (HEIGHT - y)/2))
+
+    return (194, 212, 242)
 
 def quitting():
     pygame.display.quit()
@@ -215,7 +230,9 @@ def update():
 
 def draw():
     global current_screen
-    screen.fill((194, 212, 242))
-    draw_dict[current_screen]()
+    global current_colour
+
+    screen.fill(current_colour)
+    current_colour = draw_dict[current_screen]()
 
 pgzrun.go()
