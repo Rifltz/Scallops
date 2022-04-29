@@ -1,4 +1,4 @@
-def new_game(mouse_pos, screen):
+def new_game(mouse_pos, screen, game_state):
     pass
 
 def new_game_draw():
