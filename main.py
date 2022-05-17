@@ -4,27 +4,28 @@ from new_game import *
 
 #Open json files
 flagjson = open("flag.json", "r")
-globalSD = json.loads(flagjson.read())
+persistent_flags = json.loads(flagjson.read())
 flagjson.close()
 
-saveData = []
+save_data = []
 for file_name in os.listdir("save"):
     print(file_name)
     save = open("save\\" + file_name, "r")
-    saveData.append(json.loads(save.read()))
+    save_data.append(json.loads(save.read()))
     save.close()
 
-    pygame.init()
-    WIDTH = 1024
-    HEIGHT = 768
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.init()
+WIDTH = 1024
+HEIGHT = 768
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
 
-    #Colour bank
-    WHITE = (255, 255, 255)
-    MAIN_PRIMARY = (21, 35, 56)
-    MAIN_SECONDARY = (218, 224, 232)
+#Colour bank
+WHITE = (255, 255, 255)
+MAIN_PRIMARY = (21, 35, 56)
+MAIN_SECONDARY = (218, 224, 232)
 
-    font = pygame.font.SysFont(None, 24) #Uses default pygame font
+font = pygame.font.SysFont(None, 24) #Uses default pygame font
 
 class button():
     """
@@ -121,23 +122,32 @@ class Therese(pygame.sprite.Sprite):
 
         self.image
 
-def on_mouse_down(current_screen, button_list, button, pos):
+def on_mouse_down(quitting, current_screen, button_list, button_call, button, pos):
+    quitting = quitting
+
     if not(button[0]):
-        return
+        return quitting, current_screen
     #print(repr(button))
 
-    if current_screen == "quit":
-        clock.schedule(quitting, 1.0)
+    if current_screen == "quit" and not quitting:
+        #Sets a timer for 1 second (1000 ms) to quit the game
+        pygame.time.set_timer(pygame.QUIT, 1000, 1)
+        quitting = True
 
-    for key in button_list[current_screen]:
-        button_list[key].animate(mouse_pos)
-        if key.hovering:
-            current_screen = key.press(current_screen)
+    for key in button_call[current_screen]:
+        button_list[key].animate(pos)
+        if button_list[key].hovering:
+            current_screen = button_list[key].press(current_screen)
             break
 
-def on_key_down(key):
+    return quitting, current_screen
+
+def on_key_down(current_screen, key):
     if key[pygame.K_ESCAPE]:
-        pygame.display.quit()
+        pygame.time.set_timer(pygame.QUIT, 10)
+
+    if current_screen == "main_menu":
+        pass
 
 def main_menu(mouse_pos, screen, game_state):
     pass
@@ -146,19 +156,15 @@ def main_menu_draw():
     return (194, 212, 242) #Bluish shade
 
 def cont_game(mouse_pos, screen, game_state):
-    back_button.animate(mouse_pos)
+    pass
 
 def cont_game_draw():
-    back_button.show()
-
     return (199, 177, 143) #Wood brown
 
 def settings(mouse_pos, screen, game_state):
-    back_button.animate(mouse_pos)
+    pass
 
 def settings_draw():
-    back_button.show()
-
     return (143, 102, 79) #Earth brown
 
 def close_game(mouse_pos, screen, game_state):
@@ -169,10 +175,7 @@ def close_game_draw():
     x, y = error_message.get_size()
     screen.blit(error_message, ((WIDTH - x)/2, (HEIGHT - y)/2))
 
-    return (194, 212, 242)
-
-def quitting():
-    pygame.display.quit()
+    return (10, 10, 10)
 
 def bob():
     pass
@@ -209,7 +212,9 @@ def draw(current_screen, current_colour, button_list, button_call):
 
     current_colour = draw_dict[current_screen]()
 
-def main():
+    return current_colour
+
+def main(flags, saveData):
     """
     Runs the program
 
@@ -223,6 +228,10 @@ def main():
     current_screen = "main_menu"
     current_colour = (194, 212, 242)
 
+    scrollX, scrollY = 0, 0
+    quitting = False
+
+    #Stores all the buttons that are present in the game
     button_list = {
         "new_game_button": button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
         "cont_game_button": button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
@@ -231,18 +240,27 @@ def main():
         "back_button": button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu")
     }
 
+    #Stores the list of buttons to display in each screen
     button_call = {
         "main_menu": ["new_game_button", "cont_game_button", "settings_button", "quit_button"],
         "new_game": [],
         "cont_game": ["back_button"],
         "settings": ["back_button"],
+        "quit": []
     }
 
+    #Boilerplate statement for infinite while loop
     running = True
 
     while running:
+
+        #Caps the framerate at 60 and records how much time has passed since the last frame
+        #Cheeky math reference of "delta t," or "change in time"
+        dt = clock.tick(60)
+
         #Handles pygame events
         for event in pygame.event.get():
+            #Exits the while loop (and the program as a whole) if the QUIT event is called
             if event.type == pygame.QUIT:
                 return
 
@@ -251,13 +269,16 @@ def main():
         mouse_states = pygame.mouse.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
 
-        on_key_down(key_states)
-        on_mouse_down(current_screen, button_list, mouse_states, mouse_pos)
+        #Processes inputs
+        on_key_down(current_screen, key_states)
+        return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, mouse_states, mouse_pos)
+        quitting, current_screen = return_tuple[0], return_tuple[1]
 
+        #Processes updating and drawing the screen
         update(current_screen, button_list, button_call)
-        draw(current_screen, current_colour, button_list, button_call)
+        current_colour = draw(current_screen, current_colour, button_list, button_call)
 
         pygame.display.update()
 
-#Run!
-main()
+#Run! along with json data
+main(persistent_flags, save_data)
