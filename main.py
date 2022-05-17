@@ -1,5 +1,5 @@
 import json, os
-import pygame, pgzrun
+import pygame
 from new_game import *
 
 #Open json files
@@ -14,20 +14,17 @@ for file_name in os.listdir("save"):
     saveData.append(json.loads(save.read()))
     save.close()
 
-print(saveData)
-pygame.init()
-WIDTH = 1024
-HEIGHT = 768
+    pygame.init()
+    WIDTH = 1024
+    HEIGHT = 768
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
-font = pygame.font.SysFont(None, 24) #Uses default pygame font
+    #Colour bank
+    WHITE = (255, 255, 255)
+    MAIN_PRIMARY = (21, 35, 56)
+    MAIN_SECONDARY = (218, 224, 232)
 
-#Colour bank
-WHITE = (255, 255, 255)
-MAIN_PRIMARY = (21, 35, 56)
-MAIN_SECONDARY = (218, 224, 232)
-
-current_screen = "main_menu"
-current_colour = (194, 212, 242)
+    font = pygame.font.SysFont(None, 24) #Uses default pygame font
 
 class button():
     """
@@ -62,7 +59,7 @@ class button():
         self.bg = bg_colour
 
         self.text = font.render(text, True, WHITE)
-        self.rect = Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
+        self.rect = pygame.Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
         self.surf = pygame.Surface((self.dim[0], self.dim[1]))
         self.hovering = False
         self.dest = destination
@@ -118,64 +115,37 @@ class button():
         screen = self.dest
         return screen
 
-class Therese(pygame.sprite.sprite):
+class Therese(pygame.sprite.Sprite):
     def __init__(self, image, width, height):
         pygame.sprite.Sprite.__init__(self)
 
         self.image
 
+def on_mouse_down(current_screen, button_list, button, pos):
+    if not(button[0]):
+        return
+    #print(repr(button))
 
-new_game_button = button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game")
-cont_game_button = button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game")
-settings_button = button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings")
-quit_button = button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit")
-
-back_button = button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu")
-
-def on_mouse_down(button, pos):
-    print(repr(button))
-    global current_screen
-
-    if current_screen == "main_menu":
-        for i in [new_game_button, cont_game_button, settings_button, quit_button]:
-            if i.hovering:
-                current_screen = i.press(current_screen)
-                break
-    elif current_screen == "new_game":
-        print("new game called")
-    elif current_screen == "cont_game":
-        print("cont_game called")
-        for i in [back_button]:
-            if i.hovering:
-                current_screen = i.press(current_screen)
-    elif current_screen == "settings":
-        print("settings called")
-        for i in [back_button]:
-            if i.hovering:
-                current_screen = i.press(current_screen)
     if current_screen == "quit":
         clock.schedule(quitting, 1.0)
 
+    for key in button_list[current_screen]:
+        button_list[key].animate(mouse_pos)
+        if key.hovering:
+            current_screen = key.press(current_screen)
+            break
+
 def on_key_down(key):
-    print(repr(key))
-    if key == keys.ESCAPE:
+    if key[pygame.K_ESCAPE]:
         pygame.display.quit()
 
-def main_menu(mouse_pos, screen):
-    new_game_button.animate(mouse_pos)
-    cont_game_button.animate(mouse_pos)
-    settings_button.animate(mouse_pos)
-    quit_button.animate(mouse_pos)
+def main_menu(mouse_pos, screen, game_state):
+    pass
 
 def main_menu_draw():
-    new_game_button.show()
-    cont_game_button.show()
-    settings_button.show()
-    quit_button.show()
-
     return (194, 212, 242) #Bluish shade
 
-def cont_game(mouse_pos, screen):
+def cont_game(mouse_pos, screen, game_state):
     back_button.animate(mouse_pos)
 
 def cont_game_draw():
@@ -183,7 +153,7 @@ def cont_game_draw():
 
     return (199, 177, 143) #Wood brown
 
-def settings(mouse_pos, screen):
+def settings(mouse_pos, screen, game_state):
     back_button.animate(mouse_pos)
 
 def settings_draw():
@@ -191,7 +161,7 @@ def settings_draw():
 
     return (143, 102, 79) #Earth brown
 
-def close_game(mouse_pos, screen):
+def close_game(mouse_pos, screen, game_state):
     pass
 
 def close_game_draw():
@@ -207,6 +177,7 @@ def quitting():
 def bob():
     pass
 
+#Both dictionaries are for drawing screens
 update_dict = {
     "main_menu": main_menu,
     "new_game": new_game,
@@ -223,16 +194,70 @@ draw_dict = {
     "quit": close_game_draw
 }
 
-def update():
+def update(current_screen, button_list, button_call):
     mouse_pos = pygame.mouse.get_pos()
 
-    update_dict[current_screen](mouse_pos, current_screen)
+    for key in button_call[current_screen]:
+        button_list[key].animate(mouse_pos)
 
-def draw():
-    global current_screen
-    global current_colour
+def draw(current_screen, current_colour, button_list, button_call):
 
     screen.fill(current_colour)
+
+    for key in button_call[current_screen]:
+        button_list[key].show()
+
     current_colour = draw_dict[current_screen]()
 
-pgzrun.go()
+def main():
+    """
+    Runs the program
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
+
+    current_screen = "main_menu"
+    current_colour = (194, 212, 242)
+
+    button_list = {
+        "new_game_button": button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
+        "cont_game_button": button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
+        "settings_button": button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
+        "quit_button": button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
+        "back_button": button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu")
+    }
+
+    button_call = {
+        "main_menu": ["new_game_button", "cont_game_button", "settings_button", "quit_button"],
+        "new_game": [],
+        "cont_game": ["back_button"],
+        "settings": ["back_button"],
+    }
+
+    running = True
+
+    while running:
+        #Handles pygame events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+
+        #Gets input states
+        key_states = pygame.key.get_pressed()
+        mouse_states = pygame.mouse.get_pressed()
+        mouse_pos = pygame.mouse.get_pos()
+
+        on_key_down(key_states)
+        on_mouse_down(current_screen, button_list, mouse_states, mouse_pos)
+
+        update(current_screen, button_list, button_call)
+        draw(current_screen, current_colour, button_list, button_call)
+
+        pygame.display.update()
+
+#Run!
+main()
