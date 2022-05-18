@@ -1,6 +1,7 @@
 import json, os
 import pygame
 from new_game import *
+#from true_reset import *
 
 #Open json files
 flagjson = open("flag.json", "r")
@@ -14,6 +15,7 @@ for file_name in os.listdir("save"):
     save_data.append(json.loads(save.read()))
     save.close()
 
+#Initialize pygame and the relevant components
 pygame.init()
 WIDTH = 1024
 HEIGHT = 768
@@ -22,6 +24,7 @@ clock = pygame.time.Clock()
 
 #Colour bank
 WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
 MAIN_PRIMARY = (21, 35, 56)
 MAIN_SECONDARY = (218, 224, 232)
 
@@ -55,7 +58,7 @@ class button():
         self.coord = coordinates
         self.dim = dimensions
 
-        self.c_active = (0, 0, 0)
+        self.c_active = BLACK
         self.main = main_colour
         self.bg = bg_colour
 
@@ -65,18 +68,19 @@ class button():
         self.hovering = False
         self.dest = destination
 
-    def show(self):
+    def show(self, coordY):
         """
         Draws the button onto the screen via its Surface
 
         Parameters:
-            None
+            coordY (int): the y coordinate of the button, configurable for the sake of scrollable buttons
 
         Returns:
             None
         """
 
-        screen.blit(self.surf, (self.coord[0], self.coord[1]))
+        self.rect.topleft = (self.coord[0], coordY)
+        screen.blit(self.surf, (self.coord[0], coordY))
 
     def animate(self, mouse_pos):
         """
@@ -113,6 +117,14 @@ class button():
 
         Returns:
             screen (str): the new screen to begin displaying"""
+
+        if self.dest == "reset":
+            data_reset()
+            return screen
+
+        if self.dest == "crash":
+            raise Exception("no, that simply won't do...")
+
         screen = self.dest
         return screen
 
@@ -203,14 +215,20 @@ def update(current_screen, button_list, button_call):
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
-def draw(current_screen, current_colour, button_list, button_call):
 
+def draw(current_screen, current_colour, button_list, button_call, scroll):
+    current_colour = draw_dict[current_screen]()
     screen.fill(current_colour)
 
-    for key in button_call[current_screen]:
-        button_list[key].show()
+    if current_screen == "settings":
+        button_list["back_button"].show(button_list["back_button"].coord[1])
 
-    current_colour = draw_dict[current_screen]()
+        for key in button_call["settings"][1:]:
+            button_list[key].show(button_list[key].coord[1] - scroll)
+        return current_colour
+
+    for key in button_call[current_screen]:
+        button_list[key].show(button_list[key].coord[1])
 
     return current_colour
 
@@ -228,7 +246,7 @@ def main(flags, saveData):
     current_screen = "main_menu"
     current_colour = (194, 212, 242)
 
-    scrollX, scrollY = 0, 0
+    scroll = 0
     quitting = False
 
     #Stores all the buttons that are present in the game
@@ -237,7 +255,9 @@ def main(flags, saveData):
         "cont_game_button": button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
         "settings_button": button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
         "quit_button": button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
-        "back_button": button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu")
+        "back_button": button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
+        "reset_button": button((200, 500 - scroll), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
+        "crash_button": button((569, 500 - scroll), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
     }
 
     #Stores the list of buttons to display in each screen
@@ -245,7 +265,7 @@ def main(flags, saveData):
         "main_menu": ["new_game_button", "cont_game_button", "settings_button", "quit_button"],
         "new_game": [],
         "cont_game": ["back_button"],
-        "settings": ["back_button"],
+        "settings": ["back_button", "reset_button", "crash_button"],
         "quit": []
     }
 
@@ -263,20 +283,26 @@ def main(flags, saveData):
             #Exits the while loop (and the program as a whole) if the QUIT event is called
             if event.type == pygame.QUIT:
                 return
+            elif event.type == pygame.MOUSEWHEEL:
+                scroll += 20*event.y
 
         #Gets input states
         key_states = pygame.key.get_pressed()
         mouse_states = pygame.mouse.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
 
-        #Processes inputs
+        #Processes keyboard inputs
         on_key_down(current_screen, key_states)
+
+        #Processes mouse inputs
         return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, mouse_states, mouse_pos)
         quitting, current_screen = return_tuple[0], return_tuple[1]
 
-        #Processes updating and drawing the screen
+        #Processes screen updating
         update(current_screen, button_list, button_call)
-        current_colour = draw(current_screen, current_colour, button_list, button_call)
+
+        #Processes screen drawing
+        current_colour = draw(current_screen, current_colour, button_list, button_call, scroll)
 
         pygame.display.update()
 
