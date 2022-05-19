@@ -30,28 +30,28 @@ MAIN_SECONDARY = (218, 224, 232)
 
 font = pygame.font.SysFont(None, 24) #Uses default pygame font
 
-class button():
+class Button():
     """
     Represents a clickable button
 
     Attributes
     ----------
-    coord (list of int): coordinate location of the button
-    dim (list of int): dimensions of the button
-    c_active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
-    main (tuple of int): main colour of button
-    bg (tuple of int): background colour of button
-    text (font object): font object for displaying the button's text
-    rect (Rect object): Rect object of the button, used for collision detection
-    surf (Surface object): surface object on which the button is drawn
-    hovering (bool): whether the button is hovered over
-    dest (str): name of the button's destination
+        coord (list of int): coordinate location of the button
+        dim (list of int): dimensions of the button
+        c_active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
+        main (tuple of int): main colour of button
+        bg (tuple of int): background colour of button
+        text (font object): font object for displaying the button's text
+        rect (Rect object): Rect object of the button, used for collision detection
+        surf (Surface object): surface object on which the button is drawn
+        hovering (bool): whether the button is hovered over
+        dest (str): name of the button's destination
 
     Methods
     -------
-    show(self): Draws the button onto the screen via its surface
-    animate(self, mouse_pos): Determines how the button appears, depending on if it is hovered over or clicked
-    press(self): Carries out what happens when the button is clicked
+        show(self, offset = 0): Draws the button onto the screen via its surface
+        animate(self, mouse_pos): Determines how the button appears, depending on if it is hovered over or clicked
+        press(self, screen): Carries out what happens when the button is clicked
     """
 
     def __init__(self, coordinates, dimensions, main_colour, bg_colour, text, destination):
@@ -68,19 +68,19 @@ class button():
         self.hovering = False
         self.dest = destination
 
-    def show(self, coordY):
+    def show(self, offset = 0):
         """
         Draws the button onto the screen via its Surface
 
         Parameters:
-            coordY (int): the y coordinate of the button, configurable for the sake of scrollable buttons
+            offset (int): the y offset of the button, configurable for scrolling
 
         Returns:
             None
         """
 
-        self.rect.topleft = (self.coord[0], coordY)
-        screen.blit(self.surf, (self.coord[0], coordY))
+        self.rect.topleft = (self.coord[0], self.coord[1] - offset)
+        screen.blit(self.surf, (self.coord[0], self.coord[1] - offset))
 
     def animate(self, mouse_pos):
         """
@@ -116,7 +116,8 @@ class button():
             screen (str): the current active screen being displayed
 
         Returns:
-            screen (str): the new screen to begin displaying"""
+            screen (str): the new screen to begin displaying
+        """
 
         if self.dest == "reset":
             data_reset()
@@ -127,6 +128,46 @@ class button():
 
         screen = self.dest
         return screen
+
+class Text():
+    """
+    Represents text to print on screen
+
+    Attributes
+    ----------
+        text (str): text to be displayed
+        x (int): x coordinate of the text
+        y (int): y coordintae of the text
+
+    Methods
+    -------
+        show(self, offset, align = "left"): Displays the text on screen according to the desired alignment
+    """
+
+    def __init__(self, text, coordinates):
+        self.text = text
+        self.x, self.y = coordinates
+
+    def show(self, offset, align = "left"):
+        """
+        Displays the text on screen according to the desired alignment
+
+        Parameters:
+            offset (int): the y offset of the text, configurable for scrolling
+            align (str): which part to align the text from
+
+        Returns:
+            None
+        """
+
+        textx, texty = self.text.get_size()
+
+        if align == "left":
+            screen.blit(self.text, (self.x, self.y + (self.y - texty)/2) - offset)
+        elif align == "center":
+            screen.blit(self.text, (self.x - textx/2, self.y + (self.y - texty)/2) - offset)
+        elif align == "right":
+            screen.blit(self.text, (self.x - textx, self.y + (self.y - texty)/2) - offset)
 
 class Therese(pygame.sprite.Sprite):
     def __init__(self, image, width, height):
@@ -140,6 +181,7 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, button, po
     if not(button[0]):
         return quitting, current_screen
     #print(repr(button))
+    print(pos)
 
     if current_screen == "quit" and not quitting:
         #Sets a timer for 1 second (1000 ms) to quit the game
@@ -210,21 +252,56 @@ draw_dict = {
 }
 
 def update(current_screen, button_list, button_call):
+    """
+    Updates the parts moving in the fore- and background
+
+    Parameters:
+        current_screen (int): the current screen being displayed
+        button_list (dict of Button): list of Button objects
+        button_call (dict of list of str): list of names of buttons to call in their respective screens
+
+    Returns:
+        None
+    """
+
     mouse_pos = pygame.mouse.get_pos()
 
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
 
-def draw(current_screen, current_colour, button_list, button_call, scroll):
+def draw(current_screen, current_colour, button_list, button_call, text_list, text_call, scroll):
+    """
+    Draws things to the screen
+
+    Parameters:
+        current_screen (int): the current screen being displayed
+        current_colour (tuple of int): the current colour of the background
+        button_list (dict of Button): list of Button objects
+        button_call (dict of list of str): list of names of buttons to call in their respective screens
+        text_list (dict of Text): list of Text objects
+        text_call (dict of list of Text) list of names of Text to call in their respective screens
+
+    Returns:
+        current_colour (int): the colour to change the background to
+    """
+
     current_colour = draw_dict[current_screen]()
     screen.fill(current_colour)
 
     if current_screen == "settings":
+        for key in button_call["settings"][1:]:
+            button_list[key].show(scroll)
+
+        for key in text_call["settings"]:
+            text_list[key].show(scroll)
+
+        bottom = pygame.Surface((1024, 100))
+        bottom.fill((143, 102, 79))
+        screen.blit(bottom, (0, 668))
+
         button_list["back_button"].show(button_list["back_button"].coord[1])
 
-        for key in button_call["settings"][1:]:
-            button_list[key].show(button_list[key].coord[1] - scroll)
         return current_colour
 
     for key in button_call[current_screen]:
@@ -251,13 +328,13 @@ def main(flags, saveData):
 
     #Stores all the buttons that are present in the game
     button_list = {
-        "new_game_button": button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
-        "cont_game_button": button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
-        "settings_button": button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
-        "quit_button": button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
-        "back_button": button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
-        "reset_button": button((200, 500 - scroll), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
-        "crash_button": button((569, 500 - scroll), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
+        "new_game_button": Button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
+        "cont_game_button": Button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
+        "settings_button": Button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
+        "quit_button": Button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
+        "back_button": Button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
+        "reset_button": Button((200, 500 - scroll), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
+        "crash_button": Button((569, 1000 - scroll), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
     }
 
     #Stores the list of buttons to display in each screen
@@ -266,6 +343,18 @@ def main(flags, saveData):
         "new_game": [],
         "cont_game": ["back_button"],
         "settings": ["back_button", "reset_button", "crash_button"],
+        "quit": []
+    }
+
+    text_list = {
+        "music_vol_text": Text("Music Volume", (100, 100))
+    }
+
+    text_call = {
+        "main_menu": [],
+        "new_game": [],
+        "cont_game": [],
+        "settings": ["music_vol_text"],
         "quit": []
     }
 
@@ -284,7 +373,11 @@ def main(flags, saveData):
             if event.type == pygame.QUIT:
                 return
             elif event.type == pygame.MOUSEWHEEL:
-                scroll += 20*event.y
+                scroll -= 50*event.y
+                if scroll < 0:
+                    scroll = 0
+                elif scroll > 1400:
+                    scroll = 1400
 
         #Gets input states
         key_states = pygame.key.get_pressed()
@@ -302,7 +395,7 @@ def main(flags, saveData):
         update(current_screen, button_list, button_call)
 
         #Processes screen drawing
-        current_colour = draw(current_screen, current_colour, button_list, button_call, scroll)
+        current_colour = draw(current_screen, current_colour, button_list, button_call, text_list, text_call, scroll)
 
         pygame.display.update()
 
