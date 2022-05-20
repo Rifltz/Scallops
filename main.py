@@ -28,7 +28,9 @@ BLACK = (0, 0, 0)
 MAIN_PRIMARY = (21, 35, 56)
 MAIN_SECONDARY = (218, 224, 232)
 
-font = pygame.font.SysFont(None, 24) #Uses default pygame font
+#Font bank, using default pygame font (ie. default system font)
+font = pygame.font.SysFont(None, 24)
+big_font = pygame.font.SysFont(None, 48)
 
 class Button():
     """
@@ -41,8 +43,8 @@ class Button():
         c_active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
         main (tuple of int): main colour of button
         bg (tuple of int): background colour of button
-        text (font object): font object for displaying the button's text
-        rect (Rect object): Rect object of the button, used for collision detection
+        text (font object): button text
+        rect (Rect object): button hitbox, used for collision detection
         surf (Surface object): surface object on which the button is drawn
         hovering (bool): whether the button is hovered over
         dest (str): name of the button's destination
@@ -120,7 +122,7 @@ class Button():
         """
 
         if self.dest == "reset":
-            data_reset()
+            #data_reset()
             return screen
 
         if self.dest == "crash":
@@ -135,7 +137,7 @@ class Text():
 
     Attributes
     ----------
-        text (str): text to be displayed
+        text (font object): font object for the text to be displayed
         x (int): x coordinate of the text
         y (int): y coordintae of the text
 
@@ -145,7 +147,7 @@ class Text():
     """
 
     def __init__(self, text, coordinates):
-        self.text = text
+        self.text = big_font.render(text, True, WHITE)
         self.x, self.y = coordinates
 
     def show(self, offset, align = "left"):
@@ -163,11 +165,11 @@ class Text():
         textx, texty = self.text.get_size()
 
         if align == "left":
-            screen.blit(self.text, (self.x, self.y + (self.y - texty)/2) - offset)
+            screen.blit(self.text, (self.x, self.y + (self.y - texty)/2 - offset))
         elif align == "center":
-            screen.blit(self.text, (self.x - textx/2, self.y + (self.y - texty)/2) - offset)
+            screen.blit(self.text, (self.x - textx/2, self.y + (self.y - texty)/2 - offset))
         elif align == "right":
-            screen.blit(self.text, (self.x - textx, self.y + (self.y - texty)/2) - offset)
+            screen.blit(self.text, (self.x - textx, self.y + (self.y - texty)/2 - offset))
 
 class Therese(pygame.sprite.Sprite):
     def __init__(self, image, width, height):
@@ -300,12 +302,12 @@ def draw(current_screen, current_colour, button_list, button_call, text_list, te
         bottom.fill((143, 102, 79))
         screen.blit(bottom, (0, 668))
 
-        button_list["back_button"].show(button_list["back_button"].coord[1])
+        button_list["back_button"].show()
 
         return current_colour
 
     for key in button_call[current_screen]:
-        button_list[key].show(button_list[key].coord[1])
+        button_list[key].show()
 
     return current_colour
 
@@ -333,8 +335,8 @@ def main(flags, saveData):
         "settings_button": Button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
         "quit_button": Button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
         "back_button": Button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
-        "reset_button": Button((200, 500 - scroll), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
-        "crash_button": Button((569, 1000 - scroll), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
+        "reset_button": Button((200, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
+        "crash_button": Button((569, 2000), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
     }
 
     #Stores the list of buttons to display in each screen
