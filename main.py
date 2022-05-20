@@ -32,7 +32,7 @@ MAIN_SECONDARY = (218, 224, 232)
 font = pygame.font.SysFont(None, 24)
 big_font = pygame.font.SysFont(None, 48)
 
-class Button():
+class Button:
     """
     Represents a clickable button
 
@@ -52,7 +52,7 @@ class Button():
     Methods
     -------
         show(self, offset = 0): Draws the button onto the screen via its surface
-        animate(self, mouse_pos): Determines how the button appears, depending on if it is hovered over or clicked
+        animate(self, mouse_pos): Determines how the button appears, depending on if it's hovered over or clicked
         press(self, screen): Carries out what happens when the button is clicked
     """
 
@@ -81,8 +81,8 @@ class Button():
             None
         """
 
-        self.rect.topleft = (self.coord[0], self.coord[1] - offset)
-        screen.blit(self.surf, (self.coord[0], self.coord[1] - offset))
+        self.rect.topleft = (self.coord[0], self.coord[1] - offset) #Hitbox
+        screen.blit(self.surf, (self.coord[0], self.coord[1] - offset)) #Actual button
 
     def animate(self, mouse_pos):
         """
@@ -121,17 +121,20 @@ class Button():
             screen (str): the new screen to begin displaying
         """
 
+        #Checks for a data reset of the game
         if self.dest == "reset":
             #data_reset()
             return screen
 
+        #Checks if the player willingly chose to crash the game
         if self.dest == "crash":
             raise Exception("no, that simply won't do...")
 
+        #Otherwise, change the screen
         screen = self.dest
         return screen
 
-class Text():
+class Text:
     """
     Represents text to print on screen
 
@@ -162,48 +165,63 @@ class Text():
             None
         """
 
+        #Finds the dimensions of the text
         textx, texty = self.text.get_size()
 
+        #Displays the text depending on the chosen alignment, centered along the y axis by default
         if align == "left":
-            screen.blit(self.text, (self.x, self.y + (self.y - texty)/2 - offset))
+            screen.blit(self.text, (self.x, self.y - texty/2 - offset))
         elif align == "center":
-            screen.blit(self.text, (self.x - textx/2, self.y + (self.y - texty)/2 - offset))
+            screen.blit(self.text, (self.x - textx/2, self.y - texty/2 - offset))
         elif align == "right":
-            screen.blit(self.text, (self.x - textx, self.y + (self.y - texty)/2 - offset))
+            screen.blit(self.text, (self.x - textx, self.y - texty/2 - offset))
+
+class Slider:
+    """
+    Represents a slider
+
+    Attributes
+    ----------
+        x (int): x coordinate of the slider
+        y (int): y coordinate of the slider
+        width (int): width of the slider
+        value (int): value of the knob on the slider
+
+    Methods
+    -------
+        animate(self, mouse_pos): Determines how the slider appears, depending on if it's hovered over or clicked
+    """
+
+    def __init__(self, coordinates, width, initial_value):
+        self.x, self.y = coordinates
+        self.width = width
+        self.value = initial_value
+
+    def animate(self, mouse_pos):
+        pass
 
 class Therese(pygame.sprite.Sprite):
-    def __init__(self, image, width, height):
+    """
+    Represents Therese, the movable sprite and playable character of the game
+
+    Attributes
+    ----------
+        Alongside those of the default pygame sprite class,
+        image (image object): image/sprite of the character
+        spawn (tuple of int): the initial coordinates of the character, ie. its spawn location
+        hitbox (Rect object): character hitbox
+
+    Methods
+    -------
+        Those of the default pygame sprite class
+    """
+
+    def __init__(self, image, coordinates, width, height):
         pygame.sprite.Sprite.__init__(self)
 
-        self.image
-
-def on_mouse_down(quitting, current_screen, button_list, button_call, button, pos):
-    quitting = quitting
-
-    if not(button[0]):
-        return quitting, current_screen
-    #print(repr(button))
-    print(pos)
-
-    if current_screen == "quit" and not quitting:
-        #Sets a timer for 1 second (1000 ms) to quit the game
-        pygame.time.set_timer(pygame.QUIT, 1000, 1)
-        quitting = True
-
-    for key in button_call[current_screen]:
-        button_list[key].animate(pos)
-        if button_list[key].hovering:
-            current_screen = button_list[key].press(current_screen)
-            break
-
-    return quitting, current_screen
-
-def on_key_down(current_screen, key):
-    if key[pygame.K_ESCAPE]:
-        pygame.time.set_timer(pygame.QUIT, 10)
-
-    if current_screen == "main_menu":
-        pass
+        self.image = image
+        self.spawn = (coordinates)
+        self.hitbox = pygame.Rect((coordinates[0], coordinates[1]), (width, height))
 
 def main_menu(mouse_pos, screen, game_state):
     pass
@@ -233,9 +251,6 @@ def close_game_draw():
 
     return (10, 10, 10)
 
-def bob():
-    pass
-
 #Both dictionaries are for drawing screens
 update_dict = {
     "main_menu": main_menu,
@@ -252,6 +267,63 @@ draw_dict = {
     "settings": settings_draw,
     "quit": close_game_draw
 }
+
+def on_mouse_down(quitting, current_screen, button_list, button_call, button, pos):
+    """
+    Defines behaviour on mouse presses or movement
+
+    Parameters:
+        quitting (bool): whether the game is in the process of quitting
+        current_screen (str): the current screen being displayed
+        button_list (dict of Button): list of Button objects
+        button_call (dict of list of str): list of names of buttons to call in their respective screens
+        button (tuple of bool): the list of mouse buttons being pressed, represented with a True statement
+        pos (tuple of int): tuple of mouse coordinates
+
+    Returns:
+        quitting (bool): whether the game is in the process of quitting
+        current_screen (str): the screen to change to
+    """
+
+    #Checks if LMB is pressed; all other mouse buttons should do nothing
+    if not(button[0]):
+        return quitting, current_screen
+
+    #Checks if the game is quitting
+    if current_screen == "quit" and not quitting:
+        #Sets a timer for 1 second (1000 ms) to quit the game
+        pygame.time.set_timer(pygame.QUIT, 1000, 1)
+        #Sets a flag so that the player can't refresh the timer by clicking again
+        quitting = True
+
+    #Default behaviour, checking for clicks on a button
+    for key in button_call[current_screen]:
+        if button_list[key].hovering:
+            current_screen = button_list[key].press(current_screen)
+            break
+
+    return quitting, current_screen
+
+def on_key_down(current_screen, key):
+    """
+    Defines behaviour on key presses
+
+    Parameters:
+        current_screen (str): the current screen being displayed
+        key (list of bool): the list of keys being pressed, represented with a True statement
+
+    Returns:
+        current_screen (str): the screen to change to
+    """
+
+    if key[pygame.K_ESCAPE]:
+        if current_screen == "main_menu":
+            pygame.time.set_timer(pygame.QUIT, 10)
+            return current_screen
+        if current_screen != "new_game":
+            current_screen = "main_menu"
+
+    return current_screen
 
 def update(current_screen, button_list, button_call):
     """
@@ -335,8 +407,8 @@ def main(flags, saveData):
         "settings_button": Button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
         "quit_button": Button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
         "back_button": Button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
-        "reset_button": Button((200, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
-        "crash_button": Button((569, 2000), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
+        "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
+        "crash_button": Button((387, 1750), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
     }
 
     #Stores the list of buttons to display in each screen
@@ -349,20 +421,20 @@ def main(flags, saveData):
     }
 
     text_list = {
-        "music_vol_text": Text("Music Volume", (100, 100))
+        "music_vol_text": Text("Music Volume", (180, 120)),
+        "sfx_vol_text": Text("Effect Volume", (180, 220))
     }
 
     text_call = {
         "main_menu": [],
         "new_game": [],
         "cont_game": [],
-        "settings": ["music_vol_text"],
+        "settings": ["music_vol_text", "sfx_vol_text"],
         "quit": []
     }
 
     #Boilerplate statement for infinite while loop
     running = True
-
     while running:
 
         #Caps the framerate at 60 and records how much time has passed since the last frame
@@ -387,7 +459,7 @@ def main(flags, saveData):
         mouse_pos = pygame.mouse.get_pos()
 
         #Processes keyboard inputs
-        on_key_down(current_screen, key_states)
+        current_screen = on_key_down(current_screen, key_states)
 
         #Processes mouse inputs
         return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, mouse_states, mouse_pos)
