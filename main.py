@@ -34,7 +34,9 @@ big_font = pygame.font.SysFont(None, 48)
 
 class Button:
     """
-    Represents a clickable button
+    Represents a clickable button.
+    Anchored to the top-left corner.\n
+    Button((coord), (dim), main, bg, text, dest)
 
     Attributes
     ----------
@@ -67,6 +69,10 @@ class Button:
         self.text = font.render(text, True, WHITE)
         self.rect = pygame.Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
         self.surf = pygame.Surface((self.dim[0], self.dim[1]))
+
+        #Turns the black parts of the surface (aka anything left untouched by the methods) transparent
+        self.surf.set_colorkey(BLACK)
+
         self.hovering = False
         self.dest = destination
 
@@ -99,12 +105,11 @@ class Button:
         self.hovering = self.rect.collidepoint(mouse_pos)
 
         #Chooses what colour the button will take
-        if self.hovering:
-            self.c_active = self.bg
-        else:
-            self.c_active = self.main
+        #bg is used for hovering, main is otherwise
+        self.c_active = self.bg if self.hovering else self.main
 
-        self.surf.fill(self.c_active)
+        #Draws the "body" of the button, with rounded corners
+        pygame.draw.rect(self.surf, self.c_active, pygame.Rect(0, 0, self.dim[0], self.dim[1]), 0,  8)
 
         #Finds the dimensions of the text to then be able to center it
         textx, texty = self.text.get_size()
@@ -136,7 +141,9 @@ class Button:
 
 class Text:
     """
-    Represents text to print on screen
+    Represents text to print on screen.
+    Always aligned center, but vertical alignment depends on align attribute.\n
+    Text(text, (x, y))
 
     Attributes
     ----------
@@ -178,27 +185,59 @@ class Text:
 
 class Slider:
     """
-    Represents a slider
+    Represents a slider\n
+    Slider((x, y), width, l_bound, r_bound, value)
 
     Attributes
     ----------
         x (int): x coordinate of the slider
         y (int): y coordinate of the slider
         width (int): width of the slider
+        l_bound (int): left boundary of the slider value
+        r_bound (int): right boundary of the slider value
         value (int): value of the knob on the slider
+        self.surf (Surface object): surface on which the object is drawn
 
     Methods
     -------
         animate(self, mouse_pos): Determines how the slider appears, depending on if it's hovered over or clicked
     """
 
-    def __init__(self, coordinates, width, initial_value):
+    def __init__(self, coordinates, width, l_value, r_value, initial_value):
         self.x, self.y = coordinates
         self.width = width
+
+        self.l_bound = l_value
+        self.r_bound = r_value
         self.value = initial_value
 
+        self.surf = pygame.Surface(self.width, 50)
+        self.surf.set_colorkey(BLACK)
+
+    def show(self):
+        """
+        Draws the slider onto the screen via its surface
+
+        Parameters:
+            none
+        
+        Returns:
+            none
+
+        """
+        screen.blit(self.surf, (self.x, self.y))
+
     def animate(self, mouse_pos):
-        pass
+
+
+        pygame.draw.rect(self.surf, MAIN_PRIMARY)
+        pygame.draw.circle(self.surf, MAIN_PRIMARY, (self.x, self.y), 20)
+
+    def adjust(self, mouse_pos):
+        slide_x = mouse_pos[0] - self.x
+
+        #The value is determined by the difference between bounds times the proportion along the slider plus the bottom bound (in case it's non-zero)
+        self.value = (self.r_bound - self.l_bound) * (slide_x / self.width) + self.l_bound
 
 class Therese(pygame.sprite.Sprite):
     """
@@ -245,7 +284,7 @@ def close_game(mouse_pos, screen, game_state):
     pass
 
 def close_game_draw():
-    error_message = font.render("Haha lol", True, WHITE)
+    error_message = font.render("Saving...", True, WHITE)
     x, y = error_message.get_size()
     screen.blit(error_message, ((WIDTH - x)/2, (HEIGHT - y)/2))
 
@@ -338,8 +377,10 @@ def update(current_screen, button_list, button_call):
         None
     """
 
+    #Gets the mouse position, for passing down to other functions
     mouse_pos = pygame.mouse.get_pos()
 
+    #Calls the cobjects that should be shown in the current screen
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
@@ -360,22 +401,26 @@ def draw(current_screen, current_colour, button_list, button_call, text_list, te
         current_colour (int): the colour to change the background to
     """
 
-    current_colour = draw_dict[current_screen]()
+    #Calls the behaviour for the currently displayed screen
     screen.fill(current_colour)
+    current_colour = draw_dict[current_screen]()
 
+    #Checks if the current screen is "settings" because special scroll functionality is required
     if current_screen == "settings":
+        #Calls all the buttons except for the first one, which is the back button that gets called later
         for key in button_call["settings"][1:]:
             button_list[key].show(scroll)
 
         for key in text_call["settings"]:
             text_list[key].show(scroll)
 
-        bottom = pygame.Surface((1024, 100))
-        bottom.fill((143, 102, 79))
-        screen.blit(bottom, (0, 668))
+        #Sets colour buffer so that the back button always layers on top
+        pygame.draw.rect(screen, (143, 102, 79), (0, 668, 1024, 100))
 
+        #Aaaand there's the previously-mentioned back button
         button_list["back_button"].show()
 
+        #Cuts the program short by returning
         return current_colour
 
     for key in button_call[current_screen]:
@@ -420,11 +465,20 @@ def main(flags, saveData):
         "quit": []
     }
 
+    #Stores the list of sliders present in the game
+    slider_list = {
+        #"music_vol_slider": Slider((0, 0), 0, 0, 0, 0),
+        #"sfx_vol_slider": Slider()
+    }
+    #No slider_call dictionary because they only appear in the settings menu anyways
+
+    #Stores all the text that's present in the game
     text_list = {
         "music_vol_text": Text("Music Volume", (180, 120)),
         "sfx_vol_text": Text("Effect Volume", (180, 220))
     }
 
+    #Stores the list of text to display in each screen
     text_call = {
         "main_menu": [],
         "new_game": [],
