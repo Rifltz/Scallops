@@ -16,6 +16,7 @@ for file_name in os.listdir("save"):
     save_data.append(json.loads(save.read()))
     save.close()
 
+#Loads assets
 entity = []
 for file_name in os.listdir("entities"):
     entity.append(pygame.image.load("entities\\" + file_name))
@@ -205,7 +206,8 @@ class Slider:
         self.surf (Surface object): surface on which the object is drawn
     Methods
     -------
-        animate(self, mouse_pos): Determines how the slider appears, depending on if it's hovered over or clicked
+        show(self, offset = 0): Draws the slider onto the screen via its surface
+        animate(self): Determines how the slider appears, depending on if it's hovered over or clicked
     """
 
     def __init__(self, coordinates, width, l_value, r_value, initial_value):
@@ -216,30 +218,30 @@ class Slider:
         self.r_bound = r_value
         self.value = initial_value
 
-        self.surf = pygame.Surface(self.width, 50)
+        self.surf = pygame.Surface((self.width, 50))
         self.surf.set_colorkey(BLACK)
 
-    def show(self):
+    def show(self, offset = 0):
         """
         Draws the slider onto the screen via its surface
         Parameters:
-            none
+            offset (int): the y offset of the slider, configurable for scrolling
 
         Returns:
             none
         """
-        screen.blit(self.surf, (self.x, self.y))
 
-    def animate(self, mouse_pos):
+        screen.blit(self.surf, (self.x, self.y - offset))
 
+    def animate(self):
 
-        pygame.draw.rect(self.surf, MAIN_PRIMARY)
+        pygame.draw.rect(self.surf, MAIN_PRIMARY, pygame.Rect(0, 25, self.width, 15), 0, 8)
         pygame.draw.circle(self.surf, MAIN_PRIMARY, (self.x, self.y), 20)
 
     def adjust(self, mouse_pos):
         slide_x = mouse_pos[0] - self.x
 
-        #The value is determined by the difference between bounds times the proportion along the slider plus the bottom bound (in case it's non-zero)
+        #The value is determined by the difference between bounds, multipled by the proportion along the slider, plus the bottom bound (in case it's non-zero)
         self.value = (self.r_bound - self.l_bound) * (slide_x / self.width) + self.l_bound
 
 class Therese(pygame.sprite.Sprite):
@@ -331,6 +333,8 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, button, po
     if not(button[0]):
         return quitting, current_screen
 
+    print(pos)
+
     #Checks if the game is quitting
     if current_screen == "quit" and not quitting:
         #Sets a timer for 1 second (1000 ms) to quit the game
@@ -367,7 +371,7 @@ def on_key_down(current_screen, key):
 
     return current_screen
 
-def update(current_screen, button_list, button_call, deg):
+def update(current_screen, button_list, button_call, slider_list, deg):
     """
     Updates the parts moving in the fore- and background
 
@@ -383,18 +387,22 @@ def update(current_screen, button_list, button_call, deg):
     #Gets the mouse position, for passing down to other functions
     mouse_pos = pygame.mouse.get_pos()
 
-    #Calls the cobjects that should be shown in the current screen
+    #Calls the objects that should be shown in the current screen
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
-    if current_screen == "main_menu":
-        if deg == 360:
-            deg = 0
-        deg += 1
+    #Bobbing text!
+    deg += 1
+    if deg == 360:
+        deg = 0
+
+    if current_screen == "settings":
+        for key in slider_list:
+            slider_list[key].animate()
 
     return deg
 
-def draw(entity, current_screen, current_colour, button_list, button_call, text_list, text_call, deg, scroll):
+def draw(entity, current_screen, current_colour, button_list, button_call, slider_list, text_list, text_call, deg, scroll):
     """
     Draws things to the screen
 
@@ -414,9 +422,10 @@ def draw(entity, current_screen, current_colour, button_list, button_call, text_
     screen.fill(current_colour)
     current_colour = draw_dict[current_screen]()
 
+    rad = math.radians(deg)
+
     #Checks if the current screen is "main menu" because the title is animated
     if current_screen == "main_menu":
-        rad = math.radians(deg)
         screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (50, 50))
 
     #Checks if the current screen is "settings" because special scroll functionality is required
@@ -428,6 +437,9 @@ def draw(entity, current_screen, current_colour, button_list, button_call, text_
         for key in text_call["settings"]:
             text_list[key].show(scroll)
 
+        for key in slider_list:
+            slider_list[key].show(scroll)
+
         #Sets colour buffer so that the back button always layers on top
         pygame.draw.rect(screen, (143, 102, 79), (0, 668, 1024, 100))
 
@@ -438,11 +450,11 @@ def draw(entity, current_screen, current_colour, button_list, button_call, text_
         return current_colour
 
     for key in button_call[current_screen]:
-        button_list[key].show()
+        button_list[key].show(5*math.sin(rad))
 
     return current_colour
 
-def main(flags, saveData. entity):
+def main(flags, saveData, entity):
     """
     Runs the program
 
@@ -462,10 +474,10 @@ def main(flags, saveData. entity):
 
     #Stores all the buttons that are present in the game
     button_list = {
-        "new_game_button": Button((650, 200), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
-        "cont_game_button": Button((650, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
-        "settings_button": Button((650, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
-        "quit_button": Button((650, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
+        "new_game_button": Button((680, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
+        "cont_game_button": Button((680, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
+        "settings_button": Button((680, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
+        "quit_button": Button((680, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
         "back_button": Button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
         "crash_button": Button((387, 1750), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
@@ -482,7 +494,7 @@ def main(flags, saveData. entity):
 
     #Stores the list of sliders present in the game
     slider_list = {
-        #"music_vol_slider": Slider((0, 0), 0, 0, 0, 0),
+        "music_vol_slider": Slider((100, 100), 200, 0, 100, 100)
         #"sfx_vol_slider": Slider()
     }
     #No slider_call dictionary because they only appear in the settings menu anyways
@@ -535,10 +547,10 @@ def main(flags, saveData. entity):
         quitting, current_screen = return_tuple[0], return_tuple[1]
 
         #Processes screen updating
-        deg = update(current_screen, button_list, button_call, deg)
+        deg = update(current_screen, button_list, button_call, slider_list, deg)
 
         #Processes screen drawing
-        current_colour = draw(entity, current_screen, current_colour, button_list, button_call, text_list, text_call, deg, scroll)
+        current_colour = draw(entity, current_screen, current_colour, button_list, button_call, slider_list, text_list, text_call, deg, scroll)
 
         pygame.display.update()
 
