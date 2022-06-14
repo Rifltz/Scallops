@@ -1,4 +1,5 @@
 import json, os
+import math
 import pygame
 from new_game import *
 #from true_reset import *
@@ -14,6 +15,12 @@ for file_name in os.listdir("save"):
     save = open("save\\" + file_name, "r")
     save_data.append(json.loads(save.read()))
     save.close()
+
+entity = []
+for file_name in os.listdir("entities"):
+    entity.append(pygame.image.load("entities\\" + file_name))
+
+entity[1] = pygame.transform.scale(entity[1], (544, 200))
 
 #Initialize pygame and the relevant components
 pygame.init()
@@ -325,7 +332,7 @@ def on_key_down(current_screen, key):
 
     return current_screen
 
-def update(current_screen, button_list, button_call):
+def update(current_screen, button_list, button_call, deg):
     """
     Updates the parts moving in the fore- and background
 
@@ -342,9 +349,16 @@ def update(current_screen, button_list, button_call):
 
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
+    
+    if current_screen == "main_menu":
+        if deg == 360:
+            deg = 0
+        deg += 1
+
+    return deg
 
 
-def draw(current_screen, current_colour, button_list, button_call, text_list, text_call, scroll):
+def draw(entity, current_screen, current_colour, button_list, button_call, text_list, text_call, deg, scroll):
     """
     Draws things to the screen
 
@@ -362,6 +376,10 @@ def draw(current_screen, current_colour, button_list, button_call, text_list, te
 
     current_colour = draw_dict[current_screen]()
     screen.fill(current_colour)
+
+    if current_screen == "main_menu":
+        rad = math.radians(deg)
+        screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (50, 50))
 
     if current_screen == "settings":
         for key in button_call["settings"][1:]:
@@ -383,7 +401,7 @@ def draw(current_screen, current_colour, button_list, button_call, text_list, te
 
     return current_colour
 
-def main(flags, saveData):
+def main(flags, saveData, entity):
     """
     Runs the program
 
@@ -397,6 +415,7 @@ def main(flags, saveData):
     current_screen = "main_menu"
     current_colour = (194, 212, 242)
 
+    deg = 0
     scroll = 0
     quitting = False
 
@@ -466,12 +485,12 @@ def main(flags, saveData):
         quitting, current_screen = return_tuple[0], return_tuple[1]
 
         #Processes screen updating
-        update(current_screen, button_list, button_call)
+        deg = update(current_screen, button_list, button_call, deg)
 
         #Processes screen drawing
-        current_colour = draw(current_screen, current_colour, button_list, button_call, text_list, text_call, scroll)
+        current_colour = draw(entity, current_screen, current_colour, button_list, button_call, text_list, text_call, deg, scroll)
 
         pygame.display.update()
 
 #Run! along with json data
-main(persistent_flags, save_data)
+main(persistent_flags, save_data, entity)
