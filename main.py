@@ -78,7 +78,7 @@ class Button:
 
         self.text = font.render(text, True, WHITE)
         self.rect = pygame.Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
-        self.surf = pygame.Surface((self.dim[0] + 2, self.dim[1] + 2)) #5px butter to accomadate for the 3D effect
+        self.surf = pygame.Surface((self.dim[0] + 2, self.dim[1] + 2)) #2px butter to accomadate for the 3D effect
 
         #Turns the black parts of the surface (aka anything left untouched by the methods) transparent
         self.surf.set_colorkey(BLACK)
@@ -226,10 +226,15 @@ class Slider:
 
         self.l_bound = l_value
         self.r_bound = r_value
-        self.value = initial_value
 
-        self.surf = pygame.Surface((self.width, 50))
-        self.surf.set_colorkey(BLACK)
+        self.value = initial_value
+        self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width
+
+        self.hitbox = pygame.Rect(self.x + self.sliderx + 10, self.y + 10, 40, 40) #Hitbox for the circle
+        self.surf = pygame.Surface((self.width + 40, 40))
+        #self.surf.set_colorkey(BLACK)
+
+        self.hovering = False
 
     def show(self, offset = 0):
         """
@@ -241,18 +246,28 @@ class Slider:
             none
         """
 
-        screen.blit(self.surf, (self.x, self.y - offset))
+        screen.blit(self.surf, (self.x - 20, self.y - offset))
 
-    def animate(self):
+    def animate(self, mouse_pos):
+        """
+        Animates the slider
+        """
 
-        pygame.draw.rect(self.surf, MAIN_PRIMARY, pygame.Rect(0, 25, self.width, 15), 0, 8)
-        pygame.draw.circle(self.surf, MAIN_PRIMARY, (self.x, self.y), 20)
+        #Checks if the mouse is hovering over the button
+        self.hovering = self.hitbox.collidepoint(mouse_pos)
+
+        #Draws the shapes
+        self.surf.fill(BLACK)
+        pygame.draw.rect(self.surf, MAIN_PRIMARY, pygame.Rect(20, 14, self.width, 12), 0, 8)
+        pygame.draw.circle(self.surf, MAIN_SECONDARY, (self.sliderx + 20, 20), 10)
+        pygame.draw.rect(screen, WHITE, self.hitbox)
 
     def adjust(self, mouse_pos):
-        slide_x = mouse_pos[0] - self.x
+        self.sliderx = mouse_pos[0] - self.x - 20
+        self.hitbox.topleft = (self.x + self.sliderx + 10, self.y + 10)
 
         #The value is determined by the difference between bounds, multipled by the proportion along the slider, plus the bottom bound (in case it's non-zero)
-        self.value = (self.r_bound - self.l_bound) * (slide_x / self.width) + self.l_bound
+        self.value = ((self.sliderx - 20) / self.width) * (self.r_bound - self.l_bound) + self.l_bound
 
 class Therese(pygame.sprite.Sprite):
     """
@@ -322,7 +337,7 @@ draw_dict = {
     "quit": close_game_draw
 }
 
-def on_mouse_down(quitting, current_screen, button_list, button_call, button, pos):
+def on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, button, pos):
     """
     Defines behaviour on mouse presses or movement
 
@@ -344,6 +359,15 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, button, po
         return quitting, current_screen
 
     print(pos)
+
+    #Checks if the game is in the settings menu
+    if current_screen == "settings":
+        for key in slider_list:
+            print(key, slider_list[key].hovering)
+            print(slider_list[key].sliderx)
+            if slider_list[key].hovering:
+                print("yes")
+                slider_list[key].adjust(pos)
 
     #Checks if the game is quitting
     if current_screen == "quit" and not quitting:
@@ -408,7 +432,7 @@ def update(current_screen, button_list, button_call, slider_list, deg):
 
     if current_screen == "settings":
         for key in slider_list:
-            slider_list[key].animate()
+            slider_list[key].animate(mouse_pos)
 
     return deg
 
@@ -505,8 +529,8 @@ def main(flags, saveData, entity):
 
     #Stores the list of sliders present in the game
     slider_list = {
-        "music_vol_slider": Slider((100, 100), 200, 0, 100, 100)
-        #"sfx_vol_slider": Slider()
+        "music_vol_slider": Slider((494, 100), 300, 0, 100, 100),
+        "sfx_vol_slider": Slider((494, 200), 300, 0, 100, 100)
     }
     #No slider_call dictionary because they only appear in the settings menu anyways
 
@@ -554,7 +578,7 @@ def main(flags, saveData, entity):
         current_screen = on_key_down(current_screen, key_states)
 
         #Processes mouse inputs
-        return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, mouse_states, mouse_pos)
+        return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, mouse_states, mouse_pos)
         quitting, current_screen = return_tuple[0], return_tuple[1]
 
         #Processes screen updating
