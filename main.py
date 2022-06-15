@@ -21,6 +21,8 @@ entity = []
 for file_name in os.listdir("entities"):
     entity.append(pygame.image.load("entities\\" + file_name))
 
+#Resize assets
+entity[0] = pygame.transform.scale(entity[0], (544, 200))
 entity[1] = pygame.transform.scale(entity[1], (544, 200))
 
 #Initialize pygame and the relevant components
@@ -34,7 +36,7 @@ clock = pygame.time.Clock()
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 MAIN_PRIMARY = (21, 35, 56)
-MAIN_SECONDARY = (218, 224, 232)
+MAIN_SECONDARY = (165, 178, 196)
 
 #Font bank, using default pygame font (ie. default system font)
 font = pygame.font.SysFont(None, 24)
@@ -76,7 +78,7 @@ class Button:
 
         self.text = font.render(text, True, WHITE)
         self.rect = pygame.Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
-        self.surf = pygame.Surface((self.dim[0], self.dim[1]))
+        self.surf = pygame.Surface((self.dim[0] + 2, self.dim[1] + 2)) #5px butter to accomadate for the 3D effect
 
         #Turns the black parts of the surface (aka anything left untouched by the methods) transparent
         self.surf.set_colorkey(BLACK)
@@ -112,16 +114,24 @@ class Button:
         #Checks if the mouse is hovering over the button
         self.hovering = self.rect.collidepoint(mouse_pos)
 
-                #Chooses what colour the button will take
+        #Chooses what colour the button will take
         #bg is used for hovering, main is otherwise
         self.c_active = self.bg if self.hovering else self.main
 
-        #Draws the "body" of the button, with rounded corners
-        pygame.draw.rect(self.surf, self.c_active, pygame.Rect(0, 0, self.dim[0], self.dim[1]), 0,  8)
+        #Erases whatever was on the surface before
+        self.surf.fill((0, 0, 0))
+
+        #Draws the "body" of the button, with rounded corners; two layers are used to achieve a 3D effect
+        if self.hovering:
+            pygame.draw.rect(self.surf, self.c_active, pygame.Rect(2, 2, self.dim[0], self.dim[1]), 0,  8) #Top layer
+        else:
+            pygame.draw.rect(self.surf, self.bg, pygame.Rect(2, 2, self.dim[0], self.dim[1]), 0,  8) #Background layer
+            pygame.draw.rect(self.surf, self.c_active, pygame.Rect(0, 0, self.dim[0], self.dim[1]), 0,  8) #Top layer
 
         #Finds the dimensions of the text to then be able to center it
         textx, texty = self.text.get_size()
-        self.surf.blit(self.text, ((self.dim[0] - textx)/2, (self.dim[1] - texty)/2))
+        text_offset = 2 if self.hovering else 0 #Whether or not to offset the text for the button being hovered over
+        self.surf.blit(self.text, ((self.dim[0] - textx)/2 + text_offset, (self.dim[1] - texty)/2 + text_offset))
 
     def press(self, screen):
         """
@@ -426,7 +436,8 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
 
     #Checks if the current screen is "main menu" because the title is animated
     if current_screen == "main_menu":
-        screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (50, 50))
+        screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (54, 54)) #Bottom layer
+        screen.blit((pygame.transform.rotate(entity[0], 2*math.sin(rad))), (50, 50)) #Top layer
 
     #Checks if the current screen is "settings" because special scroll functionality is required
     if current_screen == "settings":
@@ -450,7 +461,7 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
         return current_colour
 
     for key in button_call[current_screen]:
-        button_list[key].show(5*math.sin(rad))
+        button_list[key].show(math.sin(rad))
 
     return current_colour
 
