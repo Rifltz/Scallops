@@ -30,9 +30,9 @@ entity[0] = pygame.transform.scale(entity[0], (544, 200))
 entity[1] = pygame.transform.scale(entity[1], (544, 200))
 
 #Loads sounds
-sound = []
-for file_name in os.listdir("assets\\sounds"):
-    sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
+# sound = []
+# for file_name in os.listdir("assets\\sounds"):
+#    sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
 
 #Initializes main screen
 WIDTH = 1024
@@ -43,6 +43,8 @@ pygame.display.set_caption("Scallops!")
 
 #Defines some useful custom events
 LOOPMUSIC = pygame.USEREVENT + 1
+BUTTON = pygame.USEREVENT + 2
+SLIDER = pygame.USEREVENT + 3
 
 #Colour bank
 WHITE = (255, 255, 255)
@@ -76,13 +78,12 @@ class Button:
         hitbox (Rect object): hitbox of the button; used for collision detection
         surface (Surface object): surface object on which the button is drawn
         hovering (bool): whether the button is hovered over
-        dest (str): name of the button's destination
+        dest (Event object): name of the button's destination
 
     Methods
     -------
         show(self, offset = 0): Draws the button onto the screen via its surface
         animate(self, mouse_pos): Determines how the button appears, depending on if it's hovered over or clicked
-        press(self, screen): Carries out what happens when the button is clicked
     """
 
     def __init__(self, coordinates, dimensions, main_colour, bg_colour, text, destination):
@@ -101,7 +102,7 @@ class Button:
         self.surface.set_colorkey(BLACK) #To turn untouched parts of the surface transparent
 
         self.hovering = False
-        self.dest = destination
+        self.dest = pygame.event.Event(BUTTON, dest = destination)
 
     def show(self, offset = 0):
         """
@@ -149,30 +150,6 @@ class Button:
         #Determines if the text needs adjusting for the "3D" effect
         text_offset = 2 if self.hovering else 0
         self.surface.blit(self.text, ((self.l - self.textx)/2 + text_offset, (self.h - self.texty)/2 + text_offset))
-        
-    def press(self, screen):
-        """
-        Carries out what happens when the button is clicked
-        
-        Parameters:
-            screen (str): the screen for the program to transition to
-
-        Returns:
-            none
-        """
-        
-        #Checks for a data reset of the game
-        if self.dest == "reset":
-            #data_reset()
-            return screen
-
-        #Checks if the player willingly chose to crash the game
-        if self.dest == "crash":
-            raise Exception("no, that simply won't do...")
-
-        #Otherwise, change the screen
-        screen = self.dest
-        return screen
 
 class Slider:
     """
@@ -187,6 +164,7 @@ class Slider:
         l_bound (int): left boundary of the slider value
         r_bound (int): right boundary of the slider value
         value (int): value of the knob on the slider
+        channel (int): the sound channel to make changes to (sliders are used exclusively for volume control)
         sliderx (int): x coordinate of the slider knob
         self.hitbox (Rect object): hitbox of the slider knob; used for collision detection
         self.surface (Surface object): surface on which the object is drawn
@@ -199,7 +177,7 @@ class Slider:
         adjust(self, mouse_pos): Affects slider knob behaviour when it is interacted with
     """
 
-    def __init__(self, coordinates, width, l_value, r_value, initial_value):
+    def __init__(self, coordinates, width, l_value, r_value, initial_value, channel):
         self.x, self.y = coordinates
         self.width = width
 
@@ -207,6 +185,7 @@ class Slider:
         self.r_bound = r_value
 
         self.value = initial_value
+        self.channel = pygame.event.Event(SLIDER, target = channel, value = self.value) #Custom event passing target channel and target value
         self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width - 20
 
         self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60) #Hitbox for the circle
@@ -233,7 +212,7 @@ class Slider:
 
         Parameters:
             mouse_pos (tuple of int): the coordinates of the mouse location
-        
+
         Returns:
             none
         """
@@ -256,7 +235,7 @@ class Slider:
 
         Parameters:
             mouse_pos (tuple of int): the coordinates of the mouse location
-        
+
         Returns:
             none
         """
@@ -387,54 +366,6 @@ draw_dict = {
     "quit": close_game_draw
 }
 
-def on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, button, pos):
-    """
-    Defines behaviour on mouse presses or movement
-
-    Parameters:
-        quitting (bool): whether the game is in the process of quitting
-        current_screen (str): the current screen being displayed
-        button_list (dict of Button): list of Button objects
-        button_call (dict of list of str): list of names of buttons to call in their respective screens
-        button (tuple of bool): the list of mouse buttons being pressed, represented with a True statement
-        pos (tuple of int): tuple of mouse coordinates
-
-    Returns:
-        quitting (bool): whether the game is in the process of quitting
-        current_screen (str): the screen to change to
-    """
-
-    #Checks if LMB is pressed; all other mouse buttons should do nothing
-    if not(button[0]):
-        return quitting, current_screen
-
-    print(pos)
-
-    #Checks if the game is in the settings menu
-    if current_screen == "settings":
-        for key in slider_list:
-            if slider_list[key].hovering:
-                slider_list[key].adjust(pos)
-            if key == "music_vol_slider":
-                pygame.mixer.Channel(0).set_volume(slider_list[key].value / 100.0)
-            elif key == "sfx_vol_slider":
-                pygame.mixer.Channel(1).set_volume(slider_list[key].value / 100.0)
-
-    #Checks if the game is quitting
-    if current_screen == "quit" and not quitting:
-        #Sets a timer for 1 second (1000 ms) to quit the game
-        pygame.time.set_timer(pygame.QUIT, 1000, True)
-        #Sets a flag so that the player can't refresh the timer by clicking again
-        quitting = True
-
-    #Default behaviour, checking for clicks on a button
-    for key in button_call[current_screen]:
-        if button_list[key].hovering:
-            current_screen = button_list[key].press(current_screen)
-            break
-
-    return quitting, current_screen
-
 def on_key_down(current_screen, key):
     """
     Defines behaviour on key presses
@@ -455,6 +386,51 @@ def on_key_down(current_screen, key):
             current_screen = "main_menu"
 
     return current_screen
+
+def on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, button, pos):
+    """
+    Defines behaviour on mouse presses or movement
+
+    Parameters:
+        quitting (bool): whether the game is in the process of quitting
+        current_screen (str): the current screen being displayed
+        button_list (dict of Button): list of Button objects
+        button_call (dict of list of str): list of names of buttons to call in their respective screens
+        button (tuple of bool): the list of mouse buttons being pressed, represented with a True statement
+        pos (tuple of int): tuple of mouse coordinates
+
+    Returns:
+        quitting (bool): whether the game is in the process of quitting
+        current_screen (str): the screen to change to
+    """
+
+    #Checks if LMB is pressed; all other mouse buttons should do nothing
+    if not(button[0]):
+        return quitting
+
+    print(pos)
+
+    #Checks if the game is in the settings menu
+    if current_screen == "settings":
+        for key in slider_list:
+            if slider_list[key].hovering:
+                slider_list[key].adjust(pos)
+                pygame.event.post(slider_list[key].channel)
+
+    #Checks if the game is quitting
+    if current_screen == "quit" and not quitting:
+        #Sets a timer for 1 second (1000 ms) to quit the game
+        pygame.time.set_timer(pygame.QUIT, 1000, True)
+        #Sets a flag so that the player can't refresh the timer by clicking again
+        quitting = True
+
+    #Default behaviour, checking for clicks on a button
+    for key in button_call[current_screen]:
+        if button_list[key].hovering:
+            pygame.event.post(button_list[key].dest)
+            break
+
+    return quitting
 
 def update(current_screen, button_list, button_call, slider_list, deg):
     """
@@ -508,7 +484,6 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
     current_colour = draw_dict[current_screen]()
 
     rad = math.radians(deg)
-
     #Checks if the current screen is "main menu" because the title is animated
     if current_screen == "main_menu":
         screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (54, 54)) #Bottom layer
@@ -528,7 +503,7 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
             slider_list[key].show(scroll)
 
         #Aaaand there's the previously-mentioned back button
-        button_list["back_button"].show(3*math.sin(rad))
+        button_list["back_button"].show(3*math.sin(2*rad))
 
         #Cuts the function short by returning
         return current_colour
@@ -537,22 +512,31 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
     offset = 0
     #Adds the bob to all the buttons
     for key in button_call[current_screen]:
-        button_list[key].show(3*math.sin(rad - offset))
+        button_list[key].show(3*math.sin(2*(rad - offset)))
         offset += 0.3
 
     return current_colour
 
 def music(sound, intro):
     """
+    Controls the music
+
+    Parameters:
+        sound (list of Sound object): full list of sounds in the game
+        intro (bool): whether the intro has played
+
+    Returns:
+        intro (bool): update of the intro status
     """
+
     if intro:
         pygame.mixer.Channel(0).play(sound[0])
-        pygame.time.set_timer(LOOPMUSIC, 10739, True)
+        pygame.time.set_timer(LOOPMUSIC, 10739, True) #10379 is a magic number representing the length (in ms) of the first music file
         intro = False
-    
+
     return intro
 
-def main(p_flags, save_data, entity, sound):
+def main(p_flags, save_data, entity):
     """
     Runs the main program program
 
@@ -596,8 +580,8 @@ def main(p_flags, save_data, entity, sound):
 
     #Stores the list of sliders present in the game
     slider_list = {
-        "music_vol_slider": Slider((494, 100), 300, 0, 100, 100),
-        "sfx_vol_slider": Slider((494, 200), 300, 0, 100, 100)
+        "music_vol_slider": Slider((494, 100), 300, 0, 100, 100, 0),
+        "sfx_vol_slider": Slider((494, 200), 300, 0, 100, 100, 1)
     }
     #No slider_call dictionary because they only appear in the settings menu anyways
 
@@ -624,6 +608,18 @@ def main(p_flags, save_data, entity, sound):
         #Cheeky math reference of "delta t," or "change in time"
         dt = clock.tick(60)
 
+        #Input handling is done first so that any changes caused by them aren't delayed to the next frame (from event handling)
+        #Gets input states
+        key_states = pygame.key.get_pressed()
+        mouse_states = pygame.mouse.get_pressed()
+        mouse_pos = pygame.mouse.get_pos()
+
+        #Processes keyboard inputs
+        current_screen = on_key_down(current_screen, key_states)
+
+        #Processes mouse inputs
+        quitting = on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, mouse_states, mouse_pos)
+
         #Handles pygame events
         for event in pygame.event.get():
             #Exits the while loop (and the program as a whole) if the QUIT event is called
@@ -641,20 +637,25 @@ def main(p_flags, save_data, entity, sound):
             elif event.type == LOOPMUSIC:
                 pygame.mixer.Channel(0).play(sound[1], -1)
 
-        #Gets input states
-        key_states = pygame.key.get_pressed()
-        mouse_states = pygame.mouse.get_pressed()
-        mouse_pos = pygame.mouse.get_pos()
+            elif event.type == BUTTON:
+                #Checks for a data reset of the game
+                if event.dest == "reset":
+                    #data_reset()
+                    return
 
-        #Processes keyboard inputs
-        current_screen = on_key_down(current_screen, key_states)
+                #Checks if the player willingly chose to crash the game
+                if event.dest == "crash":
+                    raise Exception("no, that simply won't do...")
 
-        #Processes mouse inputs
-        return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, mouse_states, mouse_pos)
-        quitting, current_screen = return_tuple
+                #Otherwise, change the screen
+                current_screen = event.dest
+
+            elif event.type == SLIDER:
+                #Updates the volume of the proper sound channel
+                pygame.mixer.Channel(event.target).set_volume(event.value / 100.0)
 
         #Processes music
-        intro = music(sound, intro)
+        #intro = music(sound, intro)
 
         #Processes screen updating
         deg = update(current_screen, button_list, button_call, slider_list, deg)
@@ -665,4 +666,4 @@ def main(p_flags, save_data, entity, sound):
         pygame.display.update()
 
 #Run! along with all the requisite data
-main(persistent_flags, save_data, entity, sound)
+main(persistent_flags, save_data, entity)
