@@ -4,7 +4,7 @@ import pygame
 from new_game import *
 #from true_reset import *
 
-#Open json files
+#Opens json files
 flagjson = open("flag.json", "r")
 persistent_flags = json.loads(flagjson.read())
 flagjson.close()
@@ -16,27 +16,40 @@ for file_name in os.listdir("save"):
     save_data.append(json.loads(save.read()))
     save.close()
 
-#Loads assets
-entity = []
-for file_name in os.listdir("entities"):
-    entity.append(pygame.image.load("entities\\" + file_name))
+#Initializes base pygame and extra components
+pygame.init()
+pygame.mixer.init()
 
-#Resize assets
+#Loads entities
+entity = []
+for file_name in os.listdir("assets\\entities"):
+    entity.append(pygame.image.load("assets\\entities\\" + file_name))
+
+#Resizes assets
 entity[0] = pygame.transform.scale(entity[0], (544, 200))
 entity[1] = pygame.transform.scale(entity[1], (544, 200))
 
-#Initialize pygame and the relevant components
-pygame.init()
+#Loads sounds
+sound = []
+for file_name in os.listdir("assets\\sounds"):
+    sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
+
+#Initializes main screen
 WIDTH = 1024
 HEIGHT = 768
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
+pygame.display.set_caption("Scallops!")
+
+#Defines some useful custom events
+LOOPMUSIC = pygame.USEREVENT + 1
 
 #Colour bank
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 MAIN_PRIMARY = (21, 35, 56)
 MAIN_SECONDARY = (165, 178, 196)
+MAIN_INTERIM = (93, 107, 126)
 
 #Font bank, using default pygame font (ie. default system font)
 font = pygame.font.SysFont(None, 24)
@@ -46,18 +59,22 @@ class Button:
     """
     Represents a clickable button.
     Anchored to the top-left corner.\n
-    Button((coord), (dim), main, bg, text, dest)
+    Button((x, y), (l, h), main, bg, text, dest)
 
     Attributes
     ----------
-        coord (list of int): coordinate location of the button
-        dim (list of int): dimensions of the button
-        c_active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
+        x (int): x coordinate of button
+        y (int): y coordinate of button
+        l (int): length of button
+        h (int): height of button
+        active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
         main (tuple of int): main colour of button
         bg (tuple of int): background colour of button
         text (font object): button text
-        rect (Rect object): button hitbox, used for collision detection
-        surf (Surface object): surface object on which the button is drawn
+        textx (int): length of the text
+        texty (int): height of the text
+        hitbox (Rect object): hitbox of the button; used for collision detection
+        surface (Surface object): surface object on which the button is drawn
         hovering (bool): whether the button is hovered over
         dest (str): name of the button's destination
 
@@ -69,19 +86,19 @@ class Button:
     """
 
     def __init__(self, coordinates, dimensions, main_colour, bg_colour, text, destination):
-        self.coord = coordinates
-        self.dim = dimensions
+        self.x, self.y = coordinates
+        self.l, self.h = dimensions
 
-        self.c_active = BLACK
+        self.active = main_colour
         self.main = main_colour
         self.bg = bg_colour
 
         self.text = font.render(text, True, WHITE)
-        self.rect = pygame.Rect((self.coord[0], self.coord[1]), (self.dim[0], self.dim[1]))
-        self.surf = pygame.Surface((self.dim[0] + 2, self.dim[1] + 2)) #2px butter to accomadate for the 3D effect
+        self.textx, self.texty = self.text.get_size() #Finds the dimensions of the text to then be able to center it
 
-        #Turns the black parts of the surface (aka anything left untouched by the methods) transparent
-        self.surf.set_colorkey(BLACK)
+        self.hitbox = pygame.Rect((self.x, self.y), (self.l, self.h))
+        self.surface = pygame.Surface((self.l + 2, self.h + 2)) #2px butter to accomadate for the "3D" effect
+        self.surface.set_colorkey(BLACK) #To turn untouched parts of the surface transparent
 
         self.hovering = False
         self.dest = destination
@@ -94,56 +111,56 @@ class Button:
             offset (int): the y offset of the button, configurable for scrolling
 
         Returns:
-            None
+            none
         """
 
-        self.rect.topleft = (self.coord[0], self.coord[1] - offset) #Hitbox
-        screen.blit(self.surf, (self.coord[0], self.coord[1] - offset)) #Actual button
+        self.hitbox.topleft = (self.x, self.y - offset) #Hitbox
+        screen.blit(self.surface, (self.x, self.y - offset)) #Actual button
 
     def animate(self, mouse_pos):
         """
         Determines how the button appears, depending on if it is hovered over or clicked
 
         Parameters:
-            mouse_pos (tuple of int): the coordinates of the mouse locations
+            mouse_pos (tuple of int): the coordinates of the mouse location
 
         Returns:
-            None
+            none
         """
 
         #Checks if the mouse is hovering over the button
-        self.hovering = self.rect.collidepoint(mouse_pos)
+        self.hovering = self.hitbox.collidepoint(mouse_pos)
 
         #Chooses what colour the button will take
-        #bg is used for hovering, main is otherwise
-        self.c_active = self.bg if self.hovering else self.main
+        #bg is used for hovering, main is used otherwise
+        self.active = self.bg if self.hovering else self.main
 
-        #Erases whatever was on the surface before
-        self.surf.fill((0, 0, 0))
+        #Erases whatever was on the surface before (uses colorkey)
+        self.surface.fill((0, 0, 0))
 
         #Draws the "body" of the button, with rounded corners; two layers are used to achieve a 3D effect
         if self.hovering:
-            pygame.draw.rect(self.surf, self.c_active, pygame.Rect(2, 2, self.dim[0], self.dim[1]), 0,  8) #Top layer
+            pygame.draw.rect(self.surface, self.active, pygame.Rect(2, 2, self.l, self.h), 0,  8) #Top layer
         else:
-            pygame.draw.rect(self.surf, self.bg, pygame.Rect(2, 2, self.dim[0], self.dim[1]), 0,  8) #Background layer
-            pygame.draw.rect(self.surf, self.c_active, pygame.Rect(0, 0, self.dim[0], self.dim[1]), 0,  8) #Top layer
+            pygame.draw.rect(self.surface, self.bg, pygame.Rect(2, 2, self.l, self.h), 0,  8) #Background layer
+            pygame.draw.rect(self.surface, self.active, pygame.Rect(0, 0, self.l, self.h), 0,  8) #Top layer
 
-        #Finds the dimensions of the text to then be able to center it
-        textx, texty = self.text.get_size()
-        text_offset = 2 if self.hovering else 0 #Whether or not to offset the text for the button being hovered over
-        self.surf.blit(self.text, ((self.dim[0] - textx)/2 + text_offset, (self.dim[1] - texty)/2 + text_offset))
-
+        #Draws the text at the center of the button; the offset is used to adjust for the "3D" effect
+        #Determines if the text needs adjusting for the "3D" effect
+        text_offset = 2 if self.hovering else 0
+        self.surface.blit(self.text, ((self.l - self.textx)/2 + text_offset, (self.h - self.texty)/2 + text_offset))
+        
     def press(self, screen):
         """
         Carries out what happens when the button is clicked
-
+        
         Parameters:
-            screen (str): the current active screen being displayed
+            screen (str): the screen for the program to transition to
 
         Returns:
-            screen (str): the new screen to begin displaying
+            none
         """
-
+        
         #Checks for a data reset of the game
         if self.dest == "reset":
             #data_reset()
@@ -156,6 +173,106 @@ class Button:
         #Otherwise, change the screen
         screen = self.dest
         return screen
+
+class Slider:
+    """
+    Represents a slider\n
+    Slider((x, y), width, l_bound, r_bound, value)
+
+    Attributes
+    ----------
+        x (int): x coordinate of the slider
+        y (int): y coordinate of the slider
+        width (int): width of the slider
+        l_bound (int): left boundary of the slider value
+        r_bound (int): right boundary of the slider value
+        value (int): value of the knob on the slider
+        sliderx (int): x coordinate of the slider knob
+        self.hitbox (Rect object): hitbox of the slider knob; used for collision detection
+        self.surface (Surface object): surface on which the object is drawn
+        hovering (bool): whether the button is hovered over
+
+    Methods
+    -------
+        show(self, offset = 0): Draws the slider onto the screen via its surface
+        animate(self, mouse_pos): Determines how the slider appears, depending on interactions with it
+        adjust(self, mouse_pos): Affects slider knob behaviour when it is interacted with
+    """
+
+    def __init__(self, coordinates, width, l_value, r_value, initial_value):
+        self.x, self.y = coordinates
+        self.width = width
+
+        self.l_bound = l_value
+        self.r_bound = r_value
+
+        self.value = initial_value
+        self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width - 20
+
+        self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60) #Hitbox for the circle
+        self.surface = pygame.Surface((self.width + 40, 40))
+        self.surface.set_colorkey(BLACK)
+
+        self.hovering = False
+
+    def show(self, offset = 0):
+        """
+        Draws the slider onto the screen via its surface
+        Parameters:
+            offset (int): the y offset of the slider, configurable for scrolling
+
+        Returns:
+            none
+        """
+
+        screen.blit(self.surface, (self.x - 20, self.y - offset))
+
+    def animate(self, mouse_pos):
+        """
+        Determines how the slider appears, depending on interactions with it
+
+        Parameters:
+            mouse_pos (tuple of int): the coordinates of the mouse location
+        
+        Returns:
+            none
+        """
+
+        #Checks if the mouse is hovering over the button
+        self.hovering = self.hitbox.collidepoint(mouse_pos)
+
+        #Draws the shapes
+        self.surface.fill(BLACK)
+        pygame.draw.rect(screen, BLACK, self.hitbox)
+        pygame.draw.rect(self.surface, MAIN_PRIMARY, pygame.Rect(20, 14, self.width, 12), 0, 8)
+        if self.hovering:
+            pygame.draw.circle(self.surface, MAIN_INTERIM, (self.sliderx + 20, 20), 10)
+        else:
+            pygame.draw.circle(self.surface, MAIN_SECONDARY, (self.sliderx + 20, 20), 10)
+
+    def adjust(self, mouse_pos):
+        """
+        Affects slider knob behaviour when it is interacted with
+
+        Parameters:
+            mouse_pos (tuple of int): the coordinates of the mouse location
+        
+        Returns:
+            none
+        """
+
+        #Sets the knob's x coordinate
+        self.sliderx = mouse_pos[0] - self.x
+
+        #Check if the knob is out of bounds
+        if self.sliderx < 20 or self.sliderx > self.width - 20:
+            self.sliderx = 20 if self.sliderx < 20 else self.width - 20
+
+        #Adjusts the hitbox according to the knob
+        self.hitbox.topleft = (self.x + self.sliderx - 20, self.y - 10)
+
+        #The value is determined by the proportion of the slider, multiplied by the difference between bounds, plus the bottom bound (in case it's non-zero)
+        self.value = ((self.sliderx - 20) / self.width) * (self.r_bound - self.l_bound) + self.l_bound
 
 class Text:
     """
@@ -187,7 +304,7 @@ class Text:
             align (str): which part to align the text from
 
         Returns:
-            None
+            none
         """
 
         #Finds the dimensions of the text
@@ -201,73 +318,6 @@ class Text:
         elif align == "right":
             screen.blit(self.text, (self.x - textx, self.y - texty/2 - offset))
 
-class Slider:
-    """
-    Represents a slider\n
-    Slider((x, y), width, l_bound, r_bound, value)
-    Attributes
-    ----------
-        x (int): x coordinate of the slider
-        y (int): y coordinate of the slider
-        width (int): width of the slider
-        l_bound (int): left boundary of the slider value
-        r_bound (int): right boundary of the slider value
-        value (int): value of the knob on the slider
-        self.surf (Surface object): surface on which the object is drawn
-    Methods
-    -------
-        show(self, offset = 0): Draws the slider onto the screen via its surface
-        animate(self): Determines how the slider appears, depending on if it's hovered over or clicked
-    """
-
-    def __init__(self, coordinates, width, l_value, r_value, initial_value):
-        self.x, self.y = coordinates
-        self.width = width
-
-        self.l_bound = l_value
-        self.r_bound = r_value
-
-        self.value = initial_value
-        self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width
-
-        self.hitbox = pygame.Rect(self.x + self.sliderx + 10, self.y + 10, 40, 40) #Hitbox for the circle
-        self.surf = pygame.Surface((self.width + 40, 40))
-        #self.surf.set_colorkey(BLACK)
-
-        self.hovering = False
-
-    def show(self, offset = 0):
-        """
-        Draws the slider onto the screen via its surface
-        Parameters:
-            offset (int): the y offset of the slider, configurable for scrolling
-
-        Returns:
-            none
-        """
-
-        screen.blit(self.surf, (self.x - 20, self.y - offset))
-
-    def animate(self, mouse_pos):
-        """
-        Animates the slider
-        """
-
-        #Checks if the mouse is hovering over the button
-        self.hovering = self.hitbox.collidepoint(mouse_pos)
-
-        #Draws the shapes
-        self.surf.fill(BLACK)
-        pygame.draw.rect(self.surf, MAIN_PRIMARY, pygame.Rect(20, 14, self.width, 12), 0, 8)
-        pygame.draw.circle(self.surf, MAIN_SECONDARY, (self.sliderx + 20, 20), 10)
-        pygame.draw.rect(screen, WHITE, self.hitbox)
-
-    def adjust(self, mouse_pos):
-        self.sliderx = mouse_pos[0] - self.x - 20
-        self.hitbox.topleft = (self.x + self.sliderx + 10, self.y + 10)
-
-        #The value is determined by the difference between bounds, multipled by the proportion along the slider, plus the bottom bound (in case it's non-zero)
-        self.value = ((self.sliderx - 20) / self.width) * (self.r_bound - self.l_bound) + self.l_bound
 
 class Therese(pygame.sprite.Sprite):
     """
@@ -363,16 +413,17 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, slider_lis
     #Checks if the game is in the settings menu
     if current_screen == "settings":
         for key in slider_list:
-            print(key, slider_list[key].hovering)
-            print(slider_list[key].sliderx)
             if slider_list[key].hovering:
-                print("yes")
                 slider_list[key].adjust(pos)
+            if key == "music_vol_slider":
+                pygame.mixer.Channel(0).set_volume(slider_list[key].value / 100.0)
+            elif key == "sfx_vol_slider":
+                pygame.mixer.Channel(1).set_volume(slider_list[key].value / 100.0)
 
     #Checks if the game is quitting
     if current_screen == "quit" and not quitting:
         #Sets a timer for 1 second (1000 ms) to quit the game
-        pygame.time.set_timer(pygame.QUIT, 1000, 1)
+        pygame.time.set_timer(pygame.QUIT, 1000, True)
         #Sets a flag so that the player can't refresh the timer by clicking again
         quitting = True
 
@@ -465,6 +516,7 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
 
     #Checks if the current screen is "settings" because special scroll functionality is required
     if current_screen == "settings":
+        screen.blit(entity[2], (0, 0 - scroll))
         #Calls all the buttons except for the first one, which is the back button that gets called later
         for key in button_call["settings"][1:]:
             button_list[key].show(scroll)
@@ -475,26 +527,40 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
         for key in slider_list:
             slider_list[key].show(scroll)
 
-        #Sets colour buffer so that the back button always layers on top
-        pygame.draw.rect(screen, (143, 102, 79), (0, 668, 1024, 100))
-
         #Aaaand there's the previously-mentioned back button
-        button_list["back_button"].show()
+        button_list["back_button"].show(3*math.sin(rad))
 
-        #Cuts the program short by returning
+        #Cuts the function short by returning
         return current_colour
 
+    #Creates a slight offset on the bobs of the buttons
+    offset = 0
+    #Adds the bob to all the buttons
     for key in button_call[current_screen]:
-        button_list[key].show(math.sin(rad))
+        button_list[key].show(3*math.sin(rad - offset))
+        offset += 0.3
 
     return current_colour
 
-def main(flags, saveData, entity):
+def music(sound, intro):
     """
-    Runs the program
+    """
+    if intro:
+        pygame.mixer.Channel(0).play(sound[0])
+        pygame.time.set_timer(LOOPMUSIC, 10739, True)
+        intro = False
+    
+    return intro
+
+def main(p_flags, save_data, entity, sound):
+    """
+    Runs the main program program
 
     Parameters:
-        None
+        flags
+        save_data
+        entity
+        sound
 
     Returns:
         None
@@ -505,6 +571,7 @@ def main(flags, saveData, entity):
 
     deg = 0
     scroll = 0
+    intro = True
     quitting = False
 
     #Stores all the buttons that are present in the game
@@ -513,9 +580,9 @@ def main(flags, saveData, entity):
         "cont_game_button": Button((680, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
         "settings_button": Button((680, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
         "quit_button": Button((680, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
-        "back_button": Button((422, 700), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
+        "back_button": Button((422, 680), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
-        "crash_button": Button((387, 1750), (250, 50), BLACK, (20, 20, 20), "Crash", "crash")
+        "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash")
     }
 
     #Stores the list of buttons to display in each screen
@@ -562,12 +629,17 @@ def main(flags, saveData, entity):
             #Exits the while loop (and the program as a whole) if the QUIT event is called
             if event.type == pygame.QUIT:
                 return
+
             elif event.type == pygame.MOUSEWHEEL:
                 scroll -= 50*event.y
                 if scroll < 0:
                     scroll = 0
                 elif scroll > 1400:
                     scroll = 1400
+
+            #Loops the music in game after the intro plays
+            elif event.type == LOOPMUSIC:
+                pygame.mixer.Channel(0).play(sound[1], -1)
 
         #Gets input states
         key_states = pygame.key.get_pressed()
@@ -579,7 +651,10 @@ def main(flags, saveData, entity):
 
         #Processes mouse inputs
         return_tuple = on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, mouse_states, mouse_pos)
-        quitting, current_screen = return_tuple[0], return_tuple[1]
+        quitting, current_screen = return_tuple
+
+        #Processes music
+        intro = music(sound, intro)
 
         #Processes screen updating
         deg = update(current_screen, button_list, button_call, slider_list, deg)
@@ -589,5 +664,5 @@ def main(flags, saveData, entity):
 
         pygame.display.update()
 
-#Run! along with json data
-main(persistent_flags, save_data, entity)
+#Run! along with all the requisite data
+main(persistent_flags, save_data, entity, sound)
