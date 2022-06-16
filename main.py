@@ -558,6 +558,23 @@ def main(p_flags, save_data, entity):
     intro = True
     quitting = False
 
+    #Stores buttons corresponding to each save slot
+    save_slot = []
+    index = 1
+    for i in save_data: #what is i doing
+        if index == 1:
+            positioning = (200, 300)
+        elif index == 1:
+            positioning = (200, 500)
+        elif index == 3:
+            positiong = (624, 300)
+        elif index == 4:
+            positiong = (624, 500)
+
+        save_slot.append(Button(positioning, (300, 100), BLACK, (176, 152, 123), f"Save {i+1}", f"save {i}"))
+
+        index = index + 1 if index < 5 else 1
+
     #Stores all the buttons that are present in the game
     button_list = {
         "new_game_button": Button((680, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
