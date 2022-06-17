@@ -561,15 +561,15 @@ def main(p_flags, save_data, entity):
     #Stores buttons corresponding to each save slot
     save_slot = []
     index = 1
-    for i in save_data: #what is i doing
+    for i in range(len(save_data)): #what is i doing
         if index == 1:
             positioning = (200, 300)
         elif index == 1:
             positioning = (200, 500)
         elif index == 3:
-            positiong = (624, 300)
+            positioning = (624, 300)
         elif index == 4:
-            positiong = (624, 500)
+            positioning = (624, 500)
 
         save_slot.append(Button(positioning, (300, 100), BLACK, (176, 152, 123), f"Save {i+1}", f"save {i}"))
 
