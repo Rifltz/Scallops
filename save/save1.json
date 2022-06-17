@@ -1,3 +1,5 @@
 {
-  "isTrue": "poggers!"
+  "fish": [""],
+  "caught": 0,
+  "crashed": false
 }

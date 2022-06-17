@@ -321,26 +321,14 @@ class Therese(pygame.sprite.Sprite):
         self.spawn = (coordinates)
         self.hitbox = pygame.Rect((coordinates[0], coordinates[1]), (width, height))
 
-def main_menu(mouse_pos, screen, game_state):
-    pass
-
 def main_menu_draw():
     return (194, 212, 242) #Bluish shade
-
-def cont_game(mouse_pos, screen, game_state):
-    pass
 
 def cont_game_draw():
     return (199, 177, 143) #Wood brown
 
-def settings(mouse_pos, screen, game_state):
-    pass
-
 def settings_draw():
     return (143, 102, 79) #Earth brown
-
-def close_game(mouse_pos, screen, game_state):
-    pass
 
 def close_game_draw():
     error_message = font.render("Saving...", True, WHITE)
@@ -349,15 +337,7 @@ def close_game_draw():
 
     return (10, 10, 10)
 
-#Both dictionaries are for drawing screens
-update_dict = {
-    "main_menu": main_menu,
-    "new_game": new_game,
-    "cont_game": cont_game,
-    "settings": settings,
-    "quit": close_game
-}
-
+#Dictionary for drawing screens
 draw_dict = {
     "main_menu": main_menu_draw,
     "new_game": new_game_draw,
@@ -387,7 +367,9 @@ def on_key_down(current_screen, key):
 
     return current_screen
 
-def on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, button, pos):
+    return quitting
+
+def on_mouse_down(current_screen, slider_list, button, pos):
     """
     Defines behaviour on mouse presses or movement
 
@@ -400,15 +382,12 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, slider_lis
         pos (tuple of int): tuple of mouse coordinates
 
     Returns:
-        quitting (bool): whether the game is in the process of quitting
-        current_screen (str): the screen to change to
+        None
     """
 
     #Checks if LMB is pressed; all other mouse buttons should do nothing
     if not(button[0]):
-        return quitting
-
-    print(pos)
+        return
 
     #Checks if the game is in the settings menu
     if current_screen == "settings":
@@ -417,22 +396,7 @@ def on_mouse_down(quitting, current_screen, button_list, button_call, slider_lis
                 slider_list[key].adjust(pos)
                 pygame.event.post(slider_list[key].channel)
 
-    #Checks if the game is quitting
-    if current_screen == "quit" and not quitting:
-        #Sets a timer for 1 second (1000 ms) to quit the game
-        pygame.time.set_timer(pygame.QUIT, 1000, True)
-        #Sets a flag so that the player can't refresh the timer by clicking again
-        quitting = True
-
-    #Default behaviour, checking for clicks on a button
-    for key in button_call[current_screen]:
-        if button_list[key].hovering:
-            pygame.event.post(button_list[key].dest)
-            break
-
-    return quitting
-
-def update(current_screen, button_list, button_call, slider_list, deg):
+def update(current_screen, save_slot, button_list, button_call, slider_list, deg):
     """
     Updates the parts moving in the fore- and background
 
@@ -457,13 +421,17 @@ def update(current_screen, button_list, button_call, slider_list, deg):
     if deg == 360:
         deg = 0
 
+    if current_screen == "cont_game":
+        for key in save_slot:
+            save_slot[key].animate(mouse_pos)
+
     if current_screen == "settings":
         for key in slider_list:
             slider_list[key].animate(mouse_pos)
 
     return deg
 
-def draw(entity, current_screen, current_colour, button_list, button_call, slider_list, text_list, text_call, deg, scroll):
+def draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, deg, scroll):
     """
     Draws things to the screen
 
@@ -480,14 +448,22 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
     """
 
     #Calls the behaviour for the currently displayed screen
-    screen.fill(current_colour)
     current_colour = draw_dict[current_screen]()
+    screen.fill(current_colour)
 
     rad = math.radians(deg)
     #Checks if the current screen is "main menu" because the title is animated
     if current_screen == "main_menu":
         screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (54, 54)) #Bottom layer
         screen.blit((pygame.transform.rotate(entity[0], 2*math.sin(rad))), (50, 50)) #Top layer
+
+    #Checks if the current screen is "continue game" because the save slots need to be shown
+    if current_screen == "cont_game":
+        #Creatse a slight offset on the bobs of the buttons
+        offset = 0
+        for key in save_slot:
+            save_slot[key].show(3*math.sin(2*(rad - offset)))
+            offset += 0.3
 
     #Checks if the current screen is "settings" because special scroll functionality is required
     if current_screen == "settings":
@@ -506,7 +482,7 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
         button_list["back_button"].show(3*math.sin(2*rad))
 
         #Cuts the function short by returning
-        return current_colour
+        return
 
     #Creates a slight offset on the bobs of the buttons
     offset = 0
@@ -514,8 +490,6 @@ def draw(entity, current_screen, current_colour, button_list, button_call, slide
     for key in button_call[current_screen]:
         button_list[key].show(3*math.sin(2*(rad - offset)))
         offset += 0.3
-
-    return current_colour
 
 def music(sound, intro):
     """
@@ -558,20 +532,27 @@ def main(p_flags, save_data, entity):
     intro = True
     quitting = False
 
-    #Stores buttons corresponding to each save slot
-    save_slot = []
-    index = 1
-    for i in range(len(save_data)): #what is i doing
-        if index == 1:
-            positioning = (200, 300)
-        elif index == 1:
-            positioning = (200, 500)
-        elif index == 3:
-            positioning = (624, 300)
-        elif index == 4:
-            positioning = (624, 500)
+    #Creates empty save slot in case the player doesn't load a save file
+    active_slot = {
+        "fish": [""],
+        "caught": 0,
+        "crashed": False
+    }
 
-        save_slot.append(Button(positioning, (300, 100), BLACK, (176, 152, 123), f"Save {i+1}", f"save {i}"))
+    #Stores buttons corresponding to each save slot
+    save_slot = {}
+    index = 1
+    for i in range(len(save_data)):
+        if index == 1:
+            positioning = (100, 50)
+        elif index == 2:
+            positioning = (100, 400)
+        elif index == 3:
+            positioning = (564, 50) #WIDTH - 100 - 360
+        elif index == 4:
+            positioning = (564, 400)
+
+        save_slot[f"save {i}"] = (Button(positioning, (360, 240), BLACK, (176, 152, 123), f"File {i+1}", f"save {i}"))
 
         index = index + 1 if index < 5 else 1
 
@@ -634,8 +615,8 @@ def main(p_flags, save_data, entity):
         #Processes keyboard inputs
         current_screen = on_key_down(current_screen, key_states)
 
-        #Processes mouse inputs
-        quitting = on_mouse_down(quitting, current_screen, button_list, button_call, slider_list, mouse_states, mouse_pos)
+        #Processes held mouse inputs
+        on_mouse_down(current_screen, slider_list, mouse_states, mouse_pos)
 
         #Handles pygame events
         for event in pygame.event.get():
@@ -643,6 +624,41 @@ def main(p_flags, save_data, entity):
             if event.type == pygame.QUIT:
                 return
 
+            #Processes mouse input
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                #Checks if LMB is pressed; all other mouse buttons should do nothing
+                if event.button != 1:
+                    continue
+
+                print(event.pos)
+
+                #Checks if the current screen is "continue game" to check save slot buttons
+                if current_screen == "cont_game":
+                    for key in save_slot:
+                        if save_slot[key].hovering:
+                            pygame.event.post(save_slot[key].dest)
+
+                #Checks if the game is in "settings" to check for slider interaction
+                if current_screen == "settings":
+                    for key in slider_list:
+                        if slider_list[key].hovering:
+                            slider_list[key].adjust(event.pos)
+                            pygame.event.post(slider_list[key].channel)
+
+                #Checks if the game is quitting
+                if current_screen == "quit" and not quitting:
+                    #Sets a timer for 1 second (1000 ms) to quit the game
+                    pygame.time.set_timer(pygame.QUIT, 1000, True)
+                    #Sets a flag so that the player can't refresh the timer by clicking again
+                    quitting = True
+
+                #Default behaviour, checking for clicks on a button
+                for key in button_call[current_screen]:
+                    if button_list[key].hovering:
+                        pygame.event.post(button_list[key].dest)
+                        break
+
+            #Processes scroll wheel behaviour
             elif event.type == pygame.MOUSEWHEEL:
                 scroll -= 50*event.y
                 if scroll < 0:
@@ -654,11 +670,18 @@ def main(p_flags, save_data, entity):
             elif event.type == LOOPMUSIC:
                 pygame.mixer.Channel(0).play(sound[1], -1)
 
+            #Processes button behaviour upon clicking one
             elif event.type == BUTTON:
+                #Checks if a save file is being loaded
+                if event.dest[:4] == "save":
+                    current_screen = new_game
+                    active_slot = save_data[int(event.dest[5])]
+                    continue
+
                 #Checks for a data reset of the game
                 if event.dest == "reset":
                     #data_reset()
-                    return
+                    continue
 
                 #Checks if the player willingly chose to crash the game
                 if event.dest == "crash":
@@ -667,6 +690,7 @@ def main(p_flags, save_data, entity):
                 #Otherwise, change the screen
                 current_screen = event.dest
 
+            #Processes slider behaviour upon clicking the knob
             elif event.type == SLIDER:
                 #Updates the volume of the proper sound channel
                 pygame.mixer.Channel(event.target).set_volume(event.value / 100.0)
@@ -675,10 +699,10 @@ def main(p_flags, save_data, entity):
         #intro = music(sound, intro)
 
         #Processes screen updating
-        deg = update(current_screen, button_list, button_call, slider_list, deg)
+        deg = update(current_screen, save_slot, button_list, button_call, slider_list, deg)
 
         #Processes screen drawing
-        current_colour = draw(entity, current_screen, current_colour, button_list, button_call, slider_list, text_list, text_call, deg, scroll)
+        draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, deg, scroll)
 
         pygame.display.update()
 
