@@ -52,6 +52,8 @@ BLACK = (0, 0, 0)
 MAIN_PRIMARY = (21, 35, 56)
 MAIN_SECONDARY = (165, 178, 196)
 MAIN_INTERIM = (93, 107, 126)
+CATCH_PRIMARY = (222, 142, 176)
+CATCH_SECONDARY = (214, 116, 144)
 
 #Font bank, using default pygame font (ie. default system font)
 font = pygame.font.SysFont(None, 24)
@@ -421,6 +423,9 @@ def update(current_screen, save_slot, button_list, button_call, slider_list, deg
     if deg == 360:
         deg = 0
 
+    if current_screen == "new_game":
+        new_game()
+
     if current_screen == "cont_game":
         for key in save_slot:
             save_slot[key].animate(mouse_pos)
@@ -533,7 +538,8 @@ def main(p_flags, save_data, entity):
     quitting = False
 
     #Creates empty save slot in case the player doesn't load a save file
-    active_slot = {
+    active_slot = 0
+    active_save = {
         "fish": [""],
         "caught": 0,
         "crashed": False
@@ -564,13 +570,14 @@ def main(p_flags, save_data, entity):
         "quit_button": Button((680, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
         "back_button": Button((422, 680), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
-        "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash")
+        "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash"),
+        "catch_button": Button((600, 600), (300, 100), CATCH_PRIMARY, CATCH_SECONDARY, "Catch!", "catch")
     }
 
     #Stores the list of buttons to display in each screen
     button_call = {
         "main_menu": ["new_game_button", "cont_game_button", "settings_button", "quit_button"],
-        "new_game": [],
+        "new_game": ["catch_button"],
         "cont_game": ["back_button"],
         "settings": ["back_button", "reset_button", "crash_button"],
         "quit": []
@@ -674,8 +681,8 @@ def main(p_flags, save_data, entity):
             elif event.type == BUTTON:
                 #Checks if a save file is being loaded
                 if event.dest[:4] == "save":
-                    current_screen = new_game
-                    active_slot = save_data[int(event.dest[5])]
+                    current_screen = "new_game"
+                    active_save = save_data[int(event.dest[5])]
                     continue
 
                 #Checks for a data reset of the game

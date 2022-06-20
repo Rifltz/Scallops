@@ -1,4 +1,6 @@
-def new_game(mouse_pos, screen, game_state):
+#It gets its own file because of how complicated it is
+
+def new_game():
     pass
 
 def new_game_draw():
