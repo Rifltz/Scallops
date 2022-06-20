@@ -1,5 +1,4 @@
-import json, os
-import math
+import json, math, random, os
 import pygame
 from new_game import *
 #from true_reset import *
@@ -45,6 +44,7 @@ pygame.display.set_caption("Scallops!")
 LOOPMUSIC = pygame.USEREVENT + 1
 BUTTON = pygame.USEREVENT + 2
 SLIDER = pygame.USEREVENT + 3
+FISHING = pygame.USEREVENT + 4
 
 #Colour bank
 WHITE = (255, 255, 255)
@@ -266,23 +266,24 @@ class Text:
         text (font object): font object for the text to be displayed
         x (int): x coordinate of the text
         y (int): y coordintae of the text
+        align (str): vertical alignment of the text
 
     Methods
     -------
         show(self, offset, align = "left"): Displays the text on screen according to the desired alignment
     """
 
-    def __init__(self, text, coordinates):
+    def __init__(self, text, coordinates, alignment):
         self.text = big_font.render(text, True, WHITE)
         self.x, self.y = coordinates
+        self.align = alignment
 
-    def show(self, offset, align = "left"):
+    def show(self, offset = 0):
         """
         Displays the text on screen according to the desired alignment
 
         Parameters:
             offset (int): the y offset of the text, configurable for scrolling
-            align (str): which part to align the text from
 
         Returns:
             none
@@ -292,11 +293,11 @@ class Text:
         textx, texty = self.text.get_size()
 
         #Displays the text depending on the chosen alignment, centered along the y axis by default
-        if align == "left":
+        if self.align == "left":
             screen.blit(self.text, (self.x, self.y - texty/2 - offset))
-        elif align == "center":
+        elif self.align == "center":
             screen.blit(self.text, (self.x - textx/2, self.y - texty/2 - offset))
-        elif align == "right":
+        elif self.align == "right":
             screen.blit(self.text, (self.x - textx, self.y - texty/2 - offset))
 
 
@@ -323,6 +324,55 @@ class Therese(pygame.sprite.Sprite):
         self.spawn = (coordinates)
         self.hitbox = pygame.Rect((coordinates[0], coordinates[1]), (width, height))
 
+class Scallop:
+    """
+    Represents the scallops in the game
+    
+    Attributes
+    ----------
+        img (Surface object): sprite of the scallop
+        hitbox (surface object): hitbox of the scallop image; used for collision detection
+        name (str): name of the scallop
+        description (str): description of the scallop
+        rate (int): catch rate of the scallop
+    
+    Methods
+    -------
+        display(inventory): Displays the scallop in the proper inventory position
+    """
+
+    def __init__(self, image, name, description, catch_rate):
+        self.image = image
+        self.name = name
+        self.description = description
+        self.rate = catch_rate
+
+        self.hitbox = pygame.Rect((0, 0), self.image.get_size())
+    
+    def display(self, mouse_pos, x, y):
+        """
+        Displays the scallop in the proper inventory position
+        
+        Parameters:
+            mouse_pos (tuple of int): coordinates of the mouse
+            x (int): x coordinate to position the display
+            y (int): y coordinate to position the display
+
+        Returns:
+            name (str): name of scallop to display in the textbox
+            description (str): description of scallop to display in the textbox
+        """
+
+        screen.blit(self.image, (x, y))
+        self.hitbox.topleft = (x, y)
+
+        hovering = self.hitbox.collidepoint(mouse_pos)
+
+        if hovering:
+            return self.name, self.description
+        else:
+            return "", ""
+
 def main_menu_draw():
     return (194, 212, 242) #Bluish shade
 
@@ -333,9 +383,6 @@ def settings_draw():
     return (143, 102, 79) #Earth brown
 
 def close_game_draw():
-    error_message = font.render("Saving...", True, WHITE)
-    x, y = error_message.get_size()
-    screen.blit(error_message, ((WIDTH - x)/2, (HEIGHT - y)/2))
 
     return (10, 10, 10)
 
@@ -348,38 +395,13 @@ draw_dict = {
     "quit": close_game_draw
 }
 
-def on_key_down(current_screen, key):
-    """
-    Defines behaviour on key presses
-
-    Parameters:
-        current_screen (str): the current screen being displayed
-        key (list of bool): the list of keys being pressed, represented with a True statement
-
-    Returns:
-        current_screen (str): the screen to change to
-    """
-
-    if key[pygame.K_ESCAPE]:
-        if current_screen == "main_menu":
-            pygame.time.set_timer(pygame.QUIT, 10)
-            return current_screen
-        if current_screen != "new_game":
-            current_screen = "main_menu"
-
-    return current_screen
-
-    return quitting
-
 def on_mouse_down(current_screen, slider_list, button, pos):
     """
-    Defines behaviour on mouse presses or movement
+    Defines behaviour on held mouse inputs
 
     Parameters:
-        quitting (bool): whether the game is in the process of quitting
         current_screen (str): the current screen being displayed
-        button_list (dict of Button): list of Button objects
-        button_call (dict of list of str): list of names of buttons to call in their respective screens
+        slider_list (dict of Slider object): list of sliders in the game
         button (tuple of bool): the list of mouse buttons being pressed, represented with a True statement
         pos (tuple of int): tuple of mouse coordinates
 
@@ -495,6 +517,10 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
     for key in button_call[current_screen]:
         button_list[key].show(3*math.sin(2*(rad - offset)))
         offset += 0.3
+    
+    #Prints any miscellaneous text
+    for key in text_call[current_screen]:
+        text_list[key].show()
 
 def music(sound, intro):
     """
@@ -530,12 +556,11 @@ def main(p_flags, save_data, entity):
     """
 
     current_screen = "main_menu"
-    current_colour = (194, 212, 242)
 
     deg = 0
     scroll = 0
     intro = True
-    quitting = False
+    catching = False
 
     #Creates empty save slot in case the player doesn't load a save file
     active_slot = 0
@@ -592,8 +617,9 @@ def main(p_flags, save_data, entity):
 
     #Stores all the text that's present in the game
     text_list = {
-        "music_vol_text": Text("Music Volume", (180, 120)),
-        "sfx_vol_text": Text("Effect Volume", (180, 220))
+        "music_vol_text": Text("Music Volume", (180, 120), "left"),
+        "sfx_vol_text": Text("Effect Volume", (180, 220), "left"),
+        "saving_text": Text("Saving...", (512, 384), "center")
     }
 
     #Stores the list of text to display in each screen
@@ -602,7 +628,15 @@ def main(p_flags, save_data, entity):
         "new_game": [],
         "cont_game": [],
         "settings": ["music_vol_text", "sfx_vol_text"],
-        "quit": []
+        "quit": ["saving_text"]
+    }
+
+    #Stores the types of fish in the game
+    fish_list = {
+        "pearl_scallop": Scallop(entity[3], "Pearl Scallop", "Not an actual species, but hey! It's got a pearl!", 20),
+        "queen_scallop": Scallop(entity[3], "Queen Scallop", "Regal in both appearance and in taste.", 50),
+        "glitch_scallop": Scallop(entity[3], """Scal&A%"   l---   op  --0-+   """, "Uh oh", 5),
+        "bay_scallop": Scallop(entity[3], "Bay Scallop", "A common scallop. Makes for a nice meal.", 100)
     }
 
     #Boilerplate statement for infinite while loop
@@ -615,12 +649,8 @@ def main(p_flags, save_data, entity):
 
         #Input handling is done first so that any changes caused by them aren't delayed to the next frame (from event handling)
         #Gets input states
-        key_states = pygame.key.get_pressed()
         mouse_states = pygame.mouse.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
-
-        #Processes keyboard inputs
-        current_screen = on_key_down(current_screen, key_states)
 
         #Processes held mouse inputs
         on_mouse_down(current_screen, slider_list, mouse_states, mouse_pos)
@@ -629,7 +659,17 @@ def main(p_flags, save_data, entity):
         for event in pygame.event.get():
             #Exits the while loop (and the program as a whole) if the QUIT event is called
             if event.type == pygame.QUIT:
-                return
+                return "Succesfully saved persistent data."
+
+            #Processes keyboard input
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    if current_screen == "main_menu":
+                        pygame.time.set_timer(pygame.QUIT, 10)
+                        return current_screen
+
+                    if current_screen != "new_game":
+                        current_screen = "main_menu"
 
             #Processes mouse input
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -652,20 +692,13 @@ def main(p_flags, save_data, entity):
                             slider_list[key].adjust(event.pos)
                             pygame.event.post(slider_list[key].channel)
 
-                #Checks if the game is quitting
-                if current_screen == "quit" and not quitting:
-                    #Sets a timer for 1 second (1000 ms) to quit the game
-                    pygame.time.set_timer(pygame.QUIT, 1000, True)
-                    #Sets a flag so that the player can't refresh the timer by clicking again
-                    quitting = True
-
                 #Default behaviour, checking for clicks on a button
                 for key in button_call[current_screen]:
                     if button_list[key].hovering:
                         pygame.event.post(button_list[key].dest)
                         break
 
-            #Processes scroll wheel behaviour
+            #Processes scroll wheel input
             elif event.type == pygame.MOUSEWHEEL:
                 scroll -= 50*event.y
                 if scroll < 0:
@@ -692,15 +725,25 @@ def main(p_flags, save_data, entity):
 
                 #Checks if the player willingly chose to crash the game
                 if event.dest == "crash":
-                    raise Exception("no, that simply won't do...")
+                    return "ERROR: could not save persistent data. \nWhatever you did, please do not do it again."
+                
+                #Checks if a scallop is being caught
+                if event.dest == "catch":
+                    catching = True
+                    continue
 
-                #Otherwise, change the screen
+                #Checks if the game is quitting
+                if event.dest == "quit":
+                    #Sets a timer for 1 second (1000 ms) to quit the game
+                    pygame.time.set_timer(pygame.QUIT, 1000, True)
+
+                #Otherwise, changes the screen
                 current_screen = event.dest
 
             #Processes slider behaviour upon clicking the knob
             elif event.type == SLIDER:
                 #Updates the volume of the proper sound channel
-                pygame.mixer.Channel(event.target).set_volume(event.value / 100.0)
+                pygame.mixer.Channel(event.target).set_volume(event.value / 100.0) #Float value so python doesn't truncate to int like it did for that one CCC question I did that one time (Please don't mark this comment, I just wanted to share my grievance)
 
         #Processes music
         #intro = music(sound, intro)
@@ -714,4 +757,5 @@ def main(p_flags, save_data, entity):
         pygame.display.update()
 
 #Run! along with all the requisite data
-main(persistent_flags, save_data, entity)
+error = main(persistent_flags, save_data, entity)
+print(error)
