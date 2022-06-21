@@ -10,7 +10,6 @@ flagjson.close()
 
 save_data = []
 for file_name in os.listdir("save"):
-    print(file_name)
     save = open("save\\" + file_name, "r")
     save_data.append(json.loads(save.read()))
     save.close()
@@ -44,7 +43,14 @@ pygame.display.set_caption("Scallops!")
 LOOPMUSIC = pygame.USEREVENT + 1
 BUTTON = pygame.USEREVENT + 2
 SLIDER = pygame.USEREVENT + 3
+
 FISHING = pygame.USEREVENT + 4
+START = pygame.event.Event(FISHING, status = "start")
+CATCH = pygame.event.Event(FISHING, status = "catch")
+END = pygame.event.Event(FISHING, status = "end")
+
+QUITTING = pygame.USEREVENT + 5
+DATA_RESET = pygame.event.Event(QUITTING)
 
 #Colour bank
 WHITE = (255, 255, 255)
@@ -327,7 +333,7 @@ class Therese(pygame.sprite.Sprite):
 class Scallop:
     """
     Represents the scallops in the game
-    
+
     Attributes
     ----------
         img (Surface object): sprite of the scallop
@@ -335,7 +341,7 @@ class Scallop:
         name (str): name of the scallop
         description (str): description of the scallop
         rate (int): catch rate of the scallop
-    
+
     Methods
     -------
         display(inventory): Displays the scallop in the proper inventory position
@@ -348,11 +354,11 @@ class Scallop:
         self.rate = catch_rate
 
         self.hitbox = pygame.Rect((0, 0), self.image.get_size())
-    
+
     def display(self, mouse_pos, x, y):
         """
         Displays the scallop in the proper inventory position
-        
+
         Parameters:
             mouse_pos (tuple of int): coordinates of the mouse
             x (int): x coordinate to position the display
@@ -420,7 +426,16 @@ def on_mouse_down(current_screen, slider_list, button, pos):
                 slider_list[key].adjust(pos)
                 pygame.event.post(slider_list[key].channel)
 
-def update(current_screen, save_slot, button_list, button_call, slider_list, deg):
+def fishing(status, active_save, fish_list):
+    if status == "luring":
+        rng = random.randint(1, 100)
+        if catch >= rng:
+            pygame.event.post(CATCH)
+        return catch, active_save
+
+    if status == "reeling":
+
+def update(current_screen, save_slot, button_list, button_call, slider_list, quitting, deg):
     """
     Updates the parts moving in the fore- and background
 
@@ -517,7 +532,7 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
     for key in button_call[current_screen]:
         button_list[key].show(3*math.sin(2*(rad - offset)))
         offset += 0.3
-    
+
     #Prints any miscellaneous text
     for key in text_call[current_screen]:
         text_list[key].show()
@@ -560,7 +575,11 @@ def main(p_flags, save_data, entity):
     deg = 0
     scroll = 0
     intro = True
-    catching = False
+    quitting = False
+
+    #Fishing minigame flags
+    fishing = False
+    status = "luring"
 
     #Creates empty save slot in case the player doesn't load a save file
     active_slot = 0
@@ -720,22 +739,31 @@ def main(p_flags, save_data, entity):
 
                 #Checks for a data reset of the game
                 if event.dest == "reset":
-                    #data_reset()
+                    #Wipes all save files
+                    for file_name in os.listdir("save"):
+                        os.remove("save\\" + file_name)
+
+                    #Returns persistent data to default state
+                    p_flags = {"state": 0, "quits": 0, "drained": False, "crashed": False}
+
+                    #Returns confirmation and closes the game
+                    print("Succesfully reset data.")
+                    pygame.event.post(DATA_RESET)
                     continue
 
                 #Checks if the player willingly chose to crash the game
                 if event.dest == "crash":
                     return "ERROR: could not save persistent data. \nWhatever you did, please do not do it again."
-                
-                #Checks if a scallop is being caught
+
+                #Checks if the fishing minigame is about to begin
                 if event.dest == "catch":
-                    catching = True
+                    fishing = True
                     continue
 
                 #Checks if the game is quitting
                 if event.dest == "quit":
                     #Sets a timer for 1 second (1000 ms) to quit the game
-                    pygame.time.set_timer(pygame.QUIT, 1000, True)
+                    pygame.time.set_timer(QUITTING, 1000, True)
 
                 #Otherwise, changes the screen
                 current_screen = event.dest
@@ -745,11 +773,41 @@ def main(p_flags, save_data, entity):
                 #Updates the volume of the proper sound channel
                 pygame.mixer.Channel(event.target).set_volume(event.value / 100.0) #Float value so python doesn't truncate to int like it did for that one CCC question I did that one time (Please don't mark this comment, I just wanted to share my grievance)
 
+            elif event.type == FISHING:
+                if event.status = "start":
+                    fishing = True
+                    status = "luring"
+                elif event.status = "snag":
+                    status = "reeling"
+
+                elif event.status = "end"
+                    #Checks if the player succeeded to catch a fish
+                    if event.success = False:
+                        for key in fish_list:
+                            rng = random.randint(1, 100)
+                            if fish_list[key].rate >= rng:
+                                active_save["fish"].append(fish_list[key])
+                                break
+
+                        #Increments the number of fish caught
+                        active_save["caught"] += 1
+
+                    #Ends the minigmae regardless of outcome
+                    fishing = False
+
+            elif event.type == QUITTING:
+                json.dump(p_flags, open("flag.json", "w"))
+                pygame.time.set_timer(pygame.QUIT, 10)
+
         #Processes music
         #intro = music(sound, intro)
 
         #Processes screen updating
-        deg = update(current_screen, save_slot, button_list, button_call, slider_list, deg)
+        deg = update(current_screen, save_slot, button_list, button_call, slider_list, quitting, deg)
+
+        #Specifically handles fishing
+        if fishing:
+            catch, active_save = fishing(status, active_sav, fish_list)
 
         #Processes screen drawing
         draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, deg, scroll)
@@ -757,5 +815,5 @@ def main(p_flags, save_data, entity):
         pygame.display.update()
 
 #Run! along with all the requisite data
-error = main(persistent_flags, save_data, entity)
-print(error)
+save_status = main(persistent_flags, save_data, entity)
+print(save_status)
