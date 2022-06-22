@@ -46,10 +46,15 @@ SLIDER = pygame.USEREVENT + 3
 
 FISHING = pygame.USEREVENT + 4
 START = pygame.event.Event(FISHING, status = "start")
-CATCH = pygame.event.Event(FISHING, status = "catch")
-END = pygame.event.Event(FISHING, status = "end")
+SNAG = pygame.event.Event(FISHING, status = "snag")
+REEL = pygame.event.Event(FISHING, stauts = "reeling")
+SUCCESS = pygame.event.Event(FISHING, status = "end", success = True)
+FAIL = pygame.event.Event(FISHING, status = "end", success = False)
 
-QUITTING = pygame.USEREVENT + 5
+SWITCH = pygame.USEREVENT + 5
+SCREEN_SWITCH = pygame.event.Event(SWITCH)
+
+QUITTING = pygame.USEREVENT + 6
 DATA_RESET = pygame.event.Event(QUITTING)
 
 #Colour bank
@@ -405,17 +410,7 @@ def on_mouse_down(current_screen, slider_list, button, pos):
             if slider_list[key].hovering:
                 slider_list[key].adjust(pos)
 
-def fishing(status, active_save, fish_list):
-    if status == "luring":
-        rng = random.randint(1, 100)
-        if catch >= rng:
-            pygame.event.post(CATCH)
-        return catch, active_save
-
-    if status == "reeling":
-        pass
-
-def update(current_screen, save_slot, button_list, button_call, slider_list, quitting):
+def update(current_screen, save_slot, button_list, button_call, slider_list):
     """
     Updates the parts moving in the fore- and background
 
@@ -467,7 +462,8 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
         #Blits the background image
         pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
         pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
-        
+        pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
+
         #Makes the computer have an easier time by pre-calcaluting a reused value
         bob_cycle = math.sin(rad)
 
@@ -478,12 +474,13 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
     elif current_screen == "new_game":
         pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
         pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
+        pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
 
     #Checks if the current screen is "continue game" because the save slots need to be shown
     elif current_screen == "cont_game":
         pygame.draw.rect(screen, (193, 178, 162), (120, 70, 790, 470)) #Paper
         pygame.draw.rect(screen, (199, 177, 143), (422, 670, 180, 70)) #Back button buffer
-        
+
         #Creatse a slight offset on the bobs of the buttons
         offset = 0
         for key in save_slot:
@@ -508,9 +505,9 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
 
         #Cuts the function short by returning
         return
-    
+
     elif current_screen == "quit":
-        screen.fill((0, 0, 0))
+        screen.fill((10, 10, 10))
 
     #Creates a slight offset on the bobs of the buttons
     offset = 0
@@ -558,9 +555,7 @@ def main(p_flags, save_data, entity):
     """
 
     current_screen = "main_menu"
-    pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
-    pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
-    screen.blit(entity[2], (0, 0))
+    pygame.event.post(SCREEN_SWITCH)
 
     deg = 0
     scroll = 0
@@ -605,7 +600,7 @@ def main(p_flags, save_data, entity):
         "back_button": Button((422, 680), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
         "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash"),
-        "catch_button": Button((600, 600), (300, 100), CATCH_PRIMARY, CATCH_SECONDARY, "Catch!", "catch")
+        "catch_button": Button((674, 638), (300, 80), CATCH_PRIMARY, CATCH_SECONDARY, "Catch!", "catch")
     }
 
     #Stores the list of buttons to display in each screen
@@ -626,6 +621,7 @@ def main(p_flags, save_data, entity):
 
     #Stores all the text that's present in the game
     text_list = {
+        "exclamation_text": Text("Text", (300, 450), "center"),
         "music_vol_text": Text("Music Volume", (180, 120), "left"),
         "sfx_vol_text": Text("Effect Volume", (180, 220), "left"),
         "saving_text": Text("Saving...", (512, 384), "center")
@@ -674,11 +670,16 @@ def main(p_flags, save_data, entity):
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     if current_screen == "main_menu":
-                        pygame.time.set_timer(pygame.QUIT, 10)
+                        (pygame.QUIT, 10)
                         return current_screen
 
-                    if current_screen != "new_game":
+                    if current_screen == "new_game":
+                        #Ends the fishing minigame by just pretending the player lost
+                        pygame.event.post(FAIL)
+
+                    else:
                         current_screen = "main_menu"
+                        pygame.event.post(SCREEN_SWITCH)
 
             #Processes mouse input
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -687,6 +688,14 @@ def main(p_flags, save_data, entity):
                     continue
 
                 print(event.pos)
+
+                if current_screen == "new_game":
+                    if fishing and status == "snag":
+                        #Disables the failure check
+                        pygame.time.set_timer(FAIL, 0)
+                        #Moves the fishing minigame onto the next phase
+                        pygame.time.set_timer(REEL)
+                        print("nice job")
 
                 #Checks if the current screen is "continue game" to check save slot buttons
                 if current_screen == "cont_game":
@@ -717,7 +726,9 @@ def main(p_flags, save_data, entity):
                 #Checks if a save file is being loaded
                 if event.dest[:4] == "save":
                     current_screen = "new_game"
+                    active_slot = event.dest[5]
                     active_save = save_data[int(event.dest[5])]
+                    pygame.event.post(SCREEN_SWITCH)
                     continue
 
                 #Checks for a data reset of the game
@@ -740,7 +751,7 @@ def main(p_flags, save_data, entity):
 
                 #Checks if the fishing minigame is about to begin
                 if event.dest == "catch":
-                    fishing = True
+                    pygame.event.post(START)
                     continue
 
                 #Checks if the game is quitting
@@ -751,15 +762,8 @@ def main(p_flags, save_data, entity):
                 #Otherwise, changes the screen
                 current_screen = event.dest
 
-                #Additionally draws things that are drawn onto the screen only once upon transition
-                if current_screen == "main_menu":
-                    pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
-                    pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
-                    screen.blit(entity[2], (0, 0))
-
-                elif current_screen == "cont_game":
-                    screen.fill((199, 177, 143)) #Background
-                    screen.blit(entity[4], (0, 0)) #Book
+                #Calls the controller for blitting objects once upon transition
+                pygame.event.post(SCREEN_SWITCH)
 
             #Processes slider behaviour upon clicking the knob
             elif event.type == SLIDER:
@@ -770,12 +774,19 @@ def main(p_flags, save_data, entity):
                 if event.status == "start":
                     fishing = True
                     status = "luring"
+                    luring_time = int(random.uniform(2, 8) * 1000) #Multiplied by 1000 to convert to ms
+                    pygame.time.set_timer(SNAG, luring_time, True)
+
                 elif event.status == "snag":
+                    pygame.time.set_timer(FAIL, 1000, True)
+                    status = "snag"
+
+                elif event.status == "reeling":
                     status = "reeling"
 
                 elif event.status == "end":
                     #Checks if the player succeeded to catch a fish
-                    if event.success == False:
+                    if event.success:
                         for key in fish_list:
                             rng = random.randint(1, 100)
                             if fish_list[key].rate >= rng:
@@ -788,14 +799,23 @@ def main(p_flags, save_data, entity):
                     #Ends the minigmae regardless of outcome
                     fishing = False
 
+            elif event.type == SWITCH:
+                #Additionally draws things that are drawn onto the screen only once upon transition
+                if current_screen == "main_menu" or current_screen == "new_game":
+                    pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
+                    pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
+                    screen.blit(entity[2], (0, 0))
+
+                elif current_screen == "cont_game":
+                    screen.fill((199, 177, 143)) #Background
+                    screen.blit(entity[4], (0, 0)) #Book
+
             elif event.type == QUITTING:
                 json.dump(p_flags, open("flag.json", "w"))
-                pygame.time.set_timer(pygame.QUIT, 10)
+                pygame.time.set_timer(pygame.QUIT, 10, True)
 
         #Processes bobbing cycle for various objects
-        deg += 1
-        if deg == 360:
-            deg = 0
+        deg = deg + 1 if deg < 360 else 0
 
         #Converts deg to radian
         rad = math.radians(deg)
@@ -804,11 +824,7 @@ def main(p_flags, save_data, entity):
         intro = music(sound, intro)
 
         #Processes screen updating
-        update(current_screen, save_slot, button_list, button_call, slider_list, quitting)
-
-        #Specifically handles fishing
-        if fishing:
-            catch, active_save = fishing(status, active_save, fish_list)
+        update(current_screen, save_slot, button_list, button_call, slider_list)
 
         #Processes screen drawing
         draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, rad, scroll)
