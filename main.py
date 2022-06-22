@@ -24,13 +24,13 @@ for file_name in os.listdir("assets\\entities"):
     entity.append(pygame.image.load("assets\\entities\\" + file_name))
 
 #Resizes assets
-entity[0] = pygame.transform.scale(entity[0], (544, 200))
-entity[1] = pygame.transform.scale(entity[1], (544, 200))
+entity[0] = pygame.transform.scale(entity[0], (362, 133))
+entity[1] = pygame.transform.scale(entity[1], (362, 133))
 
 #Loads sounds
-# sound = []
-# for file_name in os.listdir("assets\\sounds"):
-#    sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
+sound = []
+for file_name in os.listdir("assets\\sounds"):
+    sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
 
 #Initializes main screen
 WIDTH = 1024
@@ -193,7 +193,7 @@ class Slider:
         self.r_bound = r_value
 
         self.value = initial_value
-        self.channel = pygame.event.Event(SLIDER, target = channel, value = self.value) #Custom event passing target channel and target value
+        self.channel = channel
         self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width - 20
 
         self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60) #Hitbox for the circle
@@ -260,6 +260,8 @@ class Slider:
 
         #The value is determined by the proportion of the slider, multiplied by the difference between bounds, plus the bottom bound (in case it's non-zero)
         self.value = ((self.sliderx - 20) / self.width) * (self.r_bound - self.l_bound) + self.l_bound
+
+        pygame.event.post(pygame.event.Event(SLIDER, target = self.channel, value = self.value))
 
 class Text:
     """
@@ -379,28 +381,6 @@ class Scallop:
         else:
             return "", ""
 
-def main_menu_draw():
-    return (194, 212, 242) #Bluish shade
-
-def cont_game_draw():
-    return (199, 177, 143) #Wood brown
-
-def settings_draw():
-    return (143, 102, 79) #Earth brown
-
-def close_game_draw():
-
-    return (10, 10, 10)
-
-#Dictionary for drawing screens
-draw_dict = {
-    "main_menu": main_menu_draw,
-    "new_game": new_game_draw,
-    "cont_game": cont_game_draw,
-    "settings": settings_draw,
-    "quit": close_game_draw
-}
-
 def on_mouse_down(current_screen, slider_list, button, pos):
     """
     Defines behaviour on held mouse inputs
@@ -424,7 +404,6 @@ def on_mouse_down(current_screen, slider_list, button, pos):
         for key in slider_list:
             if slider_list[key].hovering:
                 slider_list[key].adjust(pos)
-                pygame.event.post(slider_list[key].channel)
 
 def fishing(status, active_save, fish_list):
     if status == "luring":
@@ -434,8 +413,9 @@ def fishing(status, active_save, fish_list):
         return catch, active_save
 
     if status == "reeling":
+        pass
 
-def update(current_screen, save_slot, button_list, button_call, slider_list, quitting, deg):
+def update(current_screen, save_slot, button_list, button_call, slider_list, quitting):
     """
     Updates the parts moving in the fore- and background
 
@@ -455,25 +435,18 @@ def update(current_screen, save_slot, button_list, button_call, slider_list, qui
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
-    #Bobbing text!
-    deg += 1
-    if deg == 360:
-        deg = 0
-
     if current_screen == "new_game":
         new_game()
 
-    if current_screen == "cont_game":
+    elif current_screen == "cont_game":
         for key in save_slot:
             save_slot[key].animate(mouse_pos)
 
-    if current_screen == "settings":
+    elif current_screen == "settings":
         for key in slider_list:
             slider_list[key].animate(mouse_pos)
 
-    return deg
-
-def draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, deg, scroll):
+def draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, rad, scroll):
     """
     Draws things to the screen
 
@@ -489,18 +462,28 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
         current_colour (int): the colour to change the background to
     """
 
-    #Calls the behaviour for the currently displayed screen
-    current_colour = draw_dict[current_screen]()
-    screen.fill(current_colour)
-
-    rad = math.radians(deg)
     #Checks if the current screen is "main menu" because the title is animated
     if current_screen == "main_menu":
-        screen.blit((pygame.transform.rotate(entity[1], 2*math.sin(rad))), (54, 54)) #Bottom layer
-        screen.blit((pygame.transform.rotate(entity[0], 2*math.sin(rad))), (50, 50)) #Top layer
+        #Blits the background image
+        pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
+        pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
+        
+        #Makes the computer have an easier time by pre-calcaluting a reused value
+        bob_cycle = math.sin(rad)
+
+        #Blits the logo
+        screen.blit((pygame.transform.rotate(entity[1], 2*bob_cycle)), (626, 104)) #Bottom layer
+        screen.blit((pygame.transform.rotate(entity[0], 2*bob_cycle)), (624, 100)) #Top layer
+
+    elif current_screen == "new_game":
+        pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
+        pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
 
     #Checks if the current screen is "continue game" because the save slots need to be shown
-    if current_screen == "cont_game":
+    elif current_screen == "cont_game":
+        pygame.draw.rect(screen, (193, 178, 162), (120, 70, 790, 470)) #Paper
+        pygame.draw.rect(screen, (199, 177, 143), (422, 670, 180, 70)) #Back button buffer
+        
         #Creatse a slight offset on the bobs of the buttons
         offset = 0
         for key in save_slot:
@@ -508,8 +491,8 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
             offset += 0.3
 
     #Checks if the current screen is "settings" because special scroll functionality is required
-    if current_screen == "settings":
-        screen.blit(entity[2], (0, 0 - scroll))
+    elif current_screen == "settings":
+        screen.blit(entity[5], (0, 0 - scroll))
         #Calls all the buttons except for the first one, which is the back button that gets called later
         for key in button_call["settings"][1:]:
             button_list[key].show(scroll)
@@ -525,12 +508,16 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
 
         #Cuts the function short by returning
         return
+    
+    elif current_screen == "quit":
+        screen.fill((0, 0, 0))
 
     #Creates a slight offset on the bobs of the buttons
     offset = 0
+
     #Adds the bob to all the buttons
     for key in button_call[current_screen]:
-        button_list[key].show(3*math.sin(2*(rad - offset)))
+        button_list[key].show(3*math.sin(2*rad - offset))
         offset += 0.3
 
     #Prints any miscellaneous text
@@ -571,6 +558,9 @@ def main(p_flags, save_data, entity):
     """
 
     current_screen = "main_menu"
+    pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
+    pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
+    screen.blit(entity[2], (0, 0))
 
     deg = 0
     scroll = 0
@@ -594,24 +584,24 @@ def main(p_flags, save_data, entity):
     index = 1
     for i in range(len(save_data)):
         if index == 1:
-            positioning = (100, 50)
+            positioning = (150, 80)
         elif index == 2:
-            positioning = (100, 400)
+            positioning = (150, 320)
         elif index == 3:
-            positioning = (564, 50) #WIDTH - 100 - 360
+            positioning = (554, 80) #x component is WIDTH - 100 - 360
         elif index == 4:
-            positioning = (564, 400)
+            positioning = (554, 320)
 
-        save_slot[f"save {i}"] = (Button(positioning, (360, 240), BLACK, (176, 152, 123), f"File {i+1}", f"save {i}"))
+        save_slot[f"save {i}"] = (Button(positioning, (320, 200), (193, 178, 162), (176, 152, 123), f"""File {i+1}: {save_data[i]["caught"]} catches""", f"save {i}"))
 
         index = index + 1 if index < 5 else 1
 
     #Stores all the buttons that are present in the game
     button_list = {
-        "new_game_button": Button((680, 300), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
-        "cont_game_button": Button((680, 400), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
-        "settings_button": Button((680, 500), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
-        "quit_button": Button((680, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
+        "new_game_button": Button((680, 270), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "New Game", "new_game"),
+        "cont_game_button": Button((680, 370), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Continue Game", "cont_game"),
+        "settings_button": Button((680, 470), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Settings", "settings"),
+        "quit_button": Button((680, 570), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Quit", "quit"),
         "back_button": Button((422, 680), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
         "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash"),
@@ -652,9 +642,9 @@ def main(p_flags, save_data, entity):
 
     #Stores the types of fish in the game
     fish_list = {
-        "pearl_scallop": Scallop(entity[3], "Pearl Scallop", "Not an actual species, but hey! It's got a pearl!", 20),
-        "queen_scallop": Scallop(entity[3], "Queen Scallop", "Regal in both appearance and in taste.", 50),
-        "glitch_scallop": Scallop(entity[3], """Scal&A%"   l---   op  --0-+   """, "Uh oh", 5),
+        "glitch_scallop": Scallop(entity[3], """Scal&A%"   l---   op  --0-+   """, "Uh oh", 2),
+        "pearl_scallop": Scallop(entity[3], "Pearl Scallop", "Not an actual species, but hey! It's got a pearl!", 8),
+        "queen_scallop": Scallop(entity[3], "Queen Scallop", "Regal in both appearance and in taste.", 22),
         "bay_scallop": Scallop(entity[3], "Bay Scallop", "A common scallop. Makes for a nice meal.", 100)
     }
 
@@ -703,13 +693,6 @@ def main(p_flags, save_data, entity):
                     for key in save_slot:
                         if save_slot[key].hovering:
                             pygame.event.post(save_slot[key].dest)
-
-                #Checks if the game is in "settings" to check for slider interaction
-                if current_screen == "settings":
-                    for key in slider_list:
-                        if slider_list[key].hovering:
-                            slider_list[key].adjust(event.pos)
-                            pygame.event.post(slider_list[key].channel)
 
                 #Default behaviour, checking for clicks on a button
                 for key in button_call[current_screen]:
@@ -768,21 +751,31 @@ def main(p_flags, save_data, entity):
                 #Otherwise, changes the screen
                 current_screen = event.dest
 
+                #Additionally draws things that are drawn onto the screen only once upon transition
+                if current_screen == "main_menu":
+                    pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
+                    pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
+                    screen.blit(entity[2], (0, 0))
+
+                elif current_screen == "cont_game":
+                    screen.fill((199, 177, 143)) #Background
+                    screen.blit(entity[4], (0, 0)) #Book
+
             #Processes slider behaviour upon clicking the knob
             elif event.type == SLIDER:
                 #Updates the volume of the proper sound channel
                 pygame.mixer.Channel(event.target).set_volume(event.value / 100.0) #Float value so python doesn't truncate to int like it did for that one CCC question I did that one time (Please don't mark this comment, I just wanted to share my grievance)
 
             elif event.type == FISHING:
-                if event.status = "start":
+                if event.status == "start":
                     fishing = True
                     status = "luring"
-                elif event.status = "snag":
+                elif event.status == "snag":
                     status = "reeling"
 
-                elif event.status = "end"
+                elif event.status == "end":
                     #Checks if the player succeeded to catch a fish
-                    if event.success = False:
+                    if event.success == False:
                         for key in fish_list:
                             rng = random.randint(1, 100)
                             if fish_list[key].rate >= rng:
@@ -799,18 +792,26 @@ def main(p_flags, save_data, entity):
                 json.dump(p_flags, open("flag.json", "w"))
                 pygame.time.set_timer(pygame.QUIT, 10)
 
+        #Processes bobbing cycle for various objects
+        deg += 1
+        if deg == 360:
+            deg = 0
+
+        #Converts deg to radian
+        rad = math.radians(deg)
+
         #Processes music
-        #intro = music(sound, intro)
+        intro = music(sound, intro)
 
         #Processes screen updating
-        deg = update(current_screen, save_slot, button_list, button_call, slider_list, quitting, deg)
+        update(current_screen, save_slot, button_list, button_call, slider_list, quitting)
 
         #Specifically handles fishing
         if fishing:
-            catch, active_save = fishing(status, active_sav, fish_list)
+            catch, active_save = fishing(status, active_save, fish_list)
 
         #Processes screen drawing
-        draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, deg, scroll)
+        draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, rad, scroll)
 
         pygame.display.update()
 
