@@ -1,11 +1,31 @@
 # Scallops
-A game about a blob on a boat. However, not everything functions as it should...
+
+A game about fishing on a tropical island. However, not everything functions as it should...\
+Well, for one thing, there are only scallops.\
+\
+Just don't break anything.
 
 ## Cool stuff
-This game doesn't function like your typical game.
-You'll *need* to restart the program, not just play it as normal.
 
-Dig around, see what you can find.
+What a nice fishing simulator!\
+There are just three parts to it:
+
+### Lure
+
+Wait patiently for a fish to nibble on your hook. It could take a while....
+
+### Snag
+
+There's the bite! Quickly click the mouse or press spacebar in time to snag it good onto your hook!
+
+### Reel
+
+Now hold on for dear life and follow the fish's movement! Keep the brown inside the green and tire the fish out.
+
+
+Sometimes, the game will crash. Don't worry: that's supposed to happen.\
+Just reboot the game, and keep playing.\
+(Unfortunately, as it stands, the crashes don't serve any purpose because I didn't have enough time to flesh out a story. Sorry)
 
 ## Play it
 
@@ -14,12 +34,15 @@ Just unzip the package somewhere (preferably in its own folder) and the game wil
 
 ## Bug terrarium
 
-There are no bugs, they all died :(
+Depending on your hardware, the main menu might lag a bit.\
+I tried to mitigate as much as possible, but it could still be a problem for you.
 
 ## Cheats
 
 Scrolling to the bottom of the Settings page and clicking the "Crash" button lets you quit the game without saving.\
 Sometimes useful.
+
+There's really not much to see in the game, just try out the save file system and have fun fishing. Not much else.
 
 ## IT department
 
