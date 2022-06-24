@@ -1,18 +1,35 @@
-import json, math, random, os
+import json, math, os, random
 import pygame
-from new_game import *
-#from true_reset import *
 
 #Opens json files
 flagjson = open("flag.json", "r")
 persistent_flags = json.loads(flagjson.read())
 flagjson.close()
 
+#List to check which save files exist
+save_status = [0, 0, 0, 0]
+
+#Continues to laod json files
 save_data = []
 for file_name in os.listdir("save"):
     save = open("save\\" + file_name, "r")
     save_data.append(json.loads(save.read()))
     save.close()
+
+    #Updates the status of the save to indicate existence
+    save_status[int(file_name[5]) - 1] = 1
+
+#Creates an empty save file
+empty_save = {
+    "fish": [""],
+    "caught": 0,
+    "crashed": False
+}
+
+#Creates any missing save files
+for i in range(len(save_status)):
+    if not save_status[i]:
+        json.dump(empty_save, open(f"save\\save {str(i+1)}.json", "x"))
 
 #Initializes base pygame and extra components
 pygame.init()
@@ -23,7 +40,7 @@ entity = []
 for file_name in os.listdir("assets\\entities"):
     entity.append(pygame.image.load("assets\\entities\\" + file_name))
 
-#Resizes assets
+#Resizes entities
 entity[0] = pygame.transform.scale(entity[0], (362, 133))
 entity[1] = pygame.transform.scale(entity[1], (362, 133))
 
@@ -32,15 +49,25 @@ sound = []
 for file_name in os.listdir("assets\\sounds"):
     sound.append(pygame.mixer.Sound("assets\\sounds\\" + file_name))
 
-#Initializes main screen
+#Initializes the game window
 WIDTH = 1024
 HEIGHT = 768
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 pygame.display.set_caption("Scallops!")
 
+#Updates the sound volumes
+pygame.mixer.Channel(0).set_volume(persistent_flags["music_vol"] / 100.0)
+pygame.mixer.Channel(1).set_volume(persistent_flags["sfx_vol"] / 100.0)
+
 #Defines some useful custom events
-LOOPMUSIC = pygame.USEREVENT + 1
+MUSIC = pygame.USEREVENT + 1
+LOOPMUSIC = pygame.event.Event(MUSIC, sound = "loop")
+PRESS = pygame.event.Event(MUSIC, sound = "press")
+LOAD = pygame.event.Event(MUSIC, sound = "load")
+SPLASH = pygame.event.Event(MUSIC, sound = "splash")
+EXCLAMATION = pygame.event.Event(MUSIC, sound = "exclamation")
+
 BUTTON = pygame.USEREVENT + 2
 SLIDER = pygame.USEREVENT + 3
 
@@ -73,8 +100,7 @@ big_font = pygame.font.SysFont(None, 48)
 class Button:
     """
     Represents a clickable button.
-    Anchored to the top-left corner.\n
-    Button((x, y), (l, h), main, bg, text, dest)
+    Anchored to the top-left corner.
 
     Attributes
     ----------
@@ -82,7 +108,6 @@ class Button:
         y (int): y coordinate of button
         l (int): length of button
         h (int): height of button
-        active (tuple of int): active colour of button (changes depending on if the button is being hovered over)
         main (tuple of int): main colour of button
         bg (tuple of int): background colour of button
         text (font object): button text
@@ -103,15 +128,15 @@ class Button:
         self.x, self.y = coordinates
         self.l, self.h = dimensions
 
-        self.active = main_colour
         self.main = main_colour
         self.bg = bg_colour
 
         self.text = font.render(text, True, WHITE)
-        self.textx, self.texty = self.text.get_size() #Finds the dimensions of the text to then be able to center it
+        #Finds the dimensions of the text to then be able to center it
+        self.textx, self.texty = self.text.get_size()
 
         self.hitbox = pygame.Rect((self.x, self.y), (self.l, self.h))
-        self.surface = pygame.Surface((self.l + 2, self.h + 2)) #2px butter to accomadate for the "3D" effect
+        self.surface = pygame.Surface((self.l + 2, self.h + 2)) #2px butter to accomadate for the 3D effect
         self.surface.set_colorkey(BLACK) #To turn untouched parts of the surface transparent
 
         self.hovering = False
@@ -145,29 +170,27 @@ class Button:
         #Checks if the mouse is hovering over the button
         self.hovering = self.hitbox.collidepoint(mouse_pos)
 
-        #Chooses what colour the button will take
-        #bg is used for hovering, main is used otherwise
-        self.active = self.bg if self.hovering else self.main
-
-        #Erases whatever was on the surface before (uses colorkey)
+        #Erases whatever was on the surface before (using colorkey)
         self.surface.fill((0, 0, 0))
 
         #Draws the "body" of the button, with rounded corners; two layers are used to achieve a 3D effect
+        #Checks if
         if self.hovering:
-            pygame.draw.rect(self.surface, self.active, pygame.Rect(2, 2, self.l, self.h), 0,  8) #Top layer
+            pygame.draw.rect(self.surface, self.bg, pygame.Rect(2, 2, self.l, self.h), 0,  8) #Top layer
         else:
             pygame.draw.rect(self.surface, self.bg, pygame.Rect(2, 2, self.l, self.h), 0,  8) #Background layer
-            pygame.draw.rect(self.surface, self.active, pygame.Rect(0, 0, self.l, self.h), 0,  8) #Top layer
+            pygame.draw.rect(self.surface, self.main, pygame.Rect(0, 0, self.l, self.h), 0,  8) #Top layer
 
-        #Draws the text at the center of the button; the offset is used to adjust for the "3D" effect
-        #Determines if the text needs adjusting for the "3D" effect
+        #Determines if the text needs adjusting for the 3D effect
         text_offset = 2 if self.hovering else 0
+        
+        #Draws the text at the center of the button; the offset is used to adjust for the 3D effect
         self.surface.blit(self.text, ((self.l - self.textx)/2 + text_offset, (self.h - self.texty)/2 + text_offset))
+
 
 class Slider:
     """
-    Represents a slider\n
-    Slider((x, y), width, l_bound, r_bound, value)
+    Represents a slider
 
     Attributes
     ----------
@@ -181,13 +204,14 @@ class Slider:
         sliderx (int): x coordinate of the slider knob
         self.hitbox (Rect object): hitbox of the slider knob; used for collision detection
         self.surface (Surface object): surface on which the object is drawn
-        hovering (bool): whether the button is hovered over
+        hovering (bool): whether the slider knob is hovered over
+        adjusted (bool): whether the slider knob is being adjusted
 
     Methods
     -------
         show(self, offset = 0): Draws the slider onto the screen via its surface
         animate(self, mouse_pos): Determines how the slider appears, depending on interactions with it
-        adjust(self, mouse_pos): Affects slider knob behaviour when it is interacted with
+        adjust(self, mouse_pos): Controls the slider knob behaviour when it is interacted with
     """
 
     def __init__(self, coordinates, width, l_value, r_value, initial_value, channel):
@@ -199,13 +223,18 @@ class Slider:
 
         self.value = initial_value
         self.channel = channel
-        self.sliderx = self.value / (self.r_bound - self.l_bound) * self.width - 20
+        #The proportion between the bounds that the value takes, times the width of the slider
+        self.sliderx = (self.value - self.l_bound) / (self.r_bound - self.l_bound) * self.width - 20
 
-        self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60) #Hitbox for the circle
+        #Mirrors the position of the slider, with some extra constants to accomodate the larger surface and the Rect coordinate system
+        self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60)
+
+        #The surface is slighter longer (20px on either side) than the slider itself to accomodate for the size of the knob
         self.surface = pygame.Surface((self.width + 40, 40))
         self.surface.set_colorkey(BLACK)
 
         self.hovering = False
+        self.adjusted = False
 
     def show(self, offset = 0):
         """
@@ -230,13 +259,17 @@ class Slider:
             none
         """
 
-        #Checks if the mouse is hovering over the button
+        #Checks if the mouse is hovering over the slider knob
         self.hovering = self.hitbox.collidepoint(mouse_pos)
 
-        #Draws the shapes
+        #Erases the surface
         self.surface.fill(BLACK)
-        pygame.draw.rect(screen, BLACK, self.hitbox)
-        pygame.draw.rect(self.surface, MAIN_PRIMARY, pygame.Rect(20, 14, self.width, 12), 0, 8)
+
+        #Draws the shapes that make up the slider
+        pygame.draw.rect(screen, BLACK, self.hitbox) #Hitbox
+        pygame.draw.rect(self.surface, MAIN_PRIMARY, pygame.Rect(20, 14, self.width, 12), 0, 8) #Long bar
+
+        #Determines what colour the knob takes based on mouse hovering, and draws the knob
         if self.hovering:
             pygame.draw.circle(self.surface, MAIN_INTERIM, (self.sliderx + 20, 20), 10)
         else:
@@ -244,7 +277,7 @@ class Slider:
 
     def adjust(self, mouse_pos):
         """
-        Affects slider knob behaviour when it is interacted with
+        Controls the slider knob behaviour when it is interacted with
 
         Parameters:
             mouse_pos (tuple of int): the coordinates of the mouse location
@@ -266,13 +299,14 @@ class Slider:
         #The value is determined by the proportion of the slider, multiplied by the difference between bounds, plus the bottom bound (in case it's non-zero)
         self.value = ((self.sliderx - 20) / self.width) * (self.r_bound - self.l_bound) + self.l_bound
 
+        #Calls the program to update whatever value the slider changes
         pygame.event.post(pygame.event.Event(SLIDER, target = self.channel, value = self.value))
+
 
 class Text:
     """
     Represents text to print on screen.
-    Always aligned center, but vertical alignment depends on align attribute.\n
-    Text(text, (x, y))
+    Always aligned center, but vertical alignment depends on align attribute.
 
     Attributes
     ----------
@@ -314,36 +348,39 @@ class Text:
             screen.blit(self.text, (self.x - textx, self.y - texty/2 - offset))
 
 
-class Therese(pygame.sprite.Sprite):
-    """
-    Represents Therese, the movable sprite and playable character of the game
+#
+#class Therese(pygame.sprite.Sprite):
+#    """
+#    Represents Therese, the movable sprite and playable character of the game
+#
+#    Attributes
+#    ----------
+#        Alongside those of the default pygame sprite class,
+#        image (image object): image/sprite of the character
+#        spawn (tuple of int): the initial coordinates of the character, ie. its spawn location
+#        hitbox (Rect object): character hitbox
+#
+#    Methods
+#    -------
+#        Those of the default pygame sprite class
+#    """
+#
+#    def __init__(self, image, coordinates, width, height):
+#        pygame.sprite.Sprite.__init__(self)
+#
+#        self.image = image
+#        self.spawn = (coordinates)
+#        self.hitbox = pygame.Rect((coordinates[0], coordinates[1]), (width, height))
 
-    Attributes
-    ----------
-        Alongside those of the default pygame sprite class,
-        image (image object): image/sprite of the character
-        spawn (tuple of int): the initial coordinates of the character, ie. its spawn location
-        hitbox (Rect object): character hitbox
-
-    Methods
-    -------
-        Those of the default pygame sprite class
-    """
-
-    def __init__(self, image, coordinates, width, height):
-        pygame.sprite.Sprite.__init__(self)
-
-        self.image = image
-        self.spawn = (coordinates)
-        self.hitbox = pygame.Rect((coordinates[0], coordinates[1]), (width, height))
 
 class Scallop:
     """
-    Represents the scallops in the game
+    Represents a scallop type in the game\n
+    Scallop(image, name, description, rate)
 
     Attributes
     ----------
-        img (Surface object): sprite of the scallop
+        image (Surface object): sprite of the scallop
         hitbox (surface object): hitbox of the scallop image; used for collision detection
         name (str): name of the scallop
         description (str): description of the scallop
@@ -351,16 +388,16 @@ class Scallop:
 
     Methods
     -------
-        display(inventory): Displays the scallop in the proper inventory position
+        display(self, mouse_pos, x, y): Displays the scallop in the proper inventory position
     """
 
     def __init__(self, image, name, description, catch_rate):
         self.image = image
+        self.hitbox = pygame.Rect((0, 0), self.image.get_size())
+
         self.name = name
         self.description = description
         self.rate = catch_rate
-
-        self.hitbox = pygame.Rect((0, 0), self.image.get_size())
 
     def display(self, mouse_pos, x, y):
         """
@@ -376,9 +413,11 @@ class Scallop:
             description (str): description of scallop to display in the textbox
         """
 
+        #Draws the scallop icon (and its hitbox) to the screen
         screen.blit(self.image, (x, y))
         self.hitbox.topleft = (x, y)
 
+        #Checks if the icon is being hovered over
         hovering = self.hitbox.collidepoint(mouse_pos)
 
         if hovering:
@@ -386,9 +425,9 @@ class Scallop:
         else:
             return "", ""
 
-def on_mouse_down(current_screen, slider_list, button, pos):
+def on_mouse_held(current_screen, slider_list, button, pos):
     """
-    Defines behaviour on held mouse inputs
+    Defines behaviour on held mouse inputs (just for sliders at the moment)
 
     Parameters:
         current_screen (str): the current screen being displayed
@@ -402,22 +441,29 @@ def on_mouse_down(current_screen, slider_list, button, pos):
 
     #Checks if LMB is pressed; all other mouse buttons should do nothing
     if not(button[0]):
+        #Removes the adjusted state from all sliders if the mouse is no longer held
+        for key in slider_list:
+            slider_list[key].adjusted = False
         return
 
-    #Checks if the game is in the settings menu
+    #Checks if the game is in the settings menu to limit slider interactivity
     if current_screen == "settings":
         for key in slider_list:
-            if slider_list[key].hovering:
+            #Looks for which slider is in the adjusted state
+            if slider_list[key].adjusted:
+                #Adjusts the knob accordingly
                 slider_list[key].adjust(pos)
 
 def update(current_screen, save_slot, button_list, button_call, slider_list):
     """
-    Updates the parts moving in the fore- and background
+    Updates the moving parts in the fore- and backgrounds
 
     Parameters:
         current_screen (int): the current screen being displayed
+        save_slot (list of dict): list of available save slots
         button_list (dict of Button): list of Button objects
         button_call (dict of list of str): list of names of buttons to call in their respective screens
+        slider_list (dict of Slider): list of Slider objects
 
     Returns:
         None
@@ -426,77 +472,181 @@ def update(current_screen, save_slot, button_list, button_call, slider_list):
     #Gets the mouse position, for passing down to other functions
     mouse_pos = pygame.mouse.get_pos()
 
-    #Calls the objects that should be shown in the current screen
+    #Animates the buttons that should be shown on the current screen
     for key in button_call[current_screen]:
         button_list[key].animate(mouse_pos)
 
-    if current_screen == "new_game":
-        new_game()
-
-    elif current_screen == "cont_game":
+    #Animates the save slots if the current screen is "continue game"
+    if current_screen == "cont_game":
         for key in save_slot:
             save_slot[key].animate(mouse_pos)
 
+    #Animates the sliders if the current screen is "settings"
     elif current_screen == "settings":
         for key in slider_list:
             slider_list[key].animate(mouse_pos)
 
-def draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, rad, scroll):
+def fishing_update(status, rect_list, speed_list, text_list, stability):
+    """
+    Updates specifically the moving parts of the fishing minigame
+    
+    Parameters:
+        status (str): stage of the fishing minigame
+        rect_list (dict of Rect object): list of Rect objects that need to be transferred across functions
+        speed_list (dict of int): list of speeds to track for the fishing minigame
+        text_list (dict of Text): list of Text objects
+        fish_speed (int): speed of the fish box
+        stability (int): stability of the catch; 100 is success, 0 is fail
+        
+    Returns:
+        None
+    """
+
+    #Number to control the constant deceleration of every speed variable
+    gravity = 0.1
+
+    #Nothing happenens during the "luring" phase
+
+    #Shows the signal of a snag occuring during the "snag" phase
+    if status == "snag":
+        text_list["exclamation_text"].show()
+
+    #Runs the main minigame during the "reeling" phase
+    elif status == "reeling":
+
+        speed_list["fish"] += random.uniform(-1, 3)
+        speed_list["fish"] -= gravity
+
+        #Caps the fish box speed
+        if speed_list["fish"] > 10:
+            speed_list["fish"] = 10
+        elif speed_list["fish"] < -10:
+            speed_list["fish"] = -10
+
+        rect_list["fish_box"].y += fish_speed
+
+        #Caps the fish box placement
+        if rect_list["fish_box"].y > 500:
+            rect_list["fish_box"].y = 500
+            speed_list["fish"] = 0
+        elif rect_list["fish_box"].y < 100:
+            rect_list["fish_box"].y = 100
+            fish_speed = 0
+
+        speed_list["rod"] -= gravity
+
+        if speed_list["rod"] > 8:
+            speed_list["rod"] = 8
+        elif speed_list["rod"] < -8:
+            speed_list["rod"] = -8
+        
+        rect_list["rod_box"].y += speed_list["rod"]
+
+        #Caps the rod box placement
+        if rect_list["rod_box"].y > 500:
+            rect_list["rod_box"].y = 500
+            speed_list["rod"] = 0
+        elif rect_list["fish_box"].y < 100:
+            rect_list["rod_box"].y = 100
+            speed_list["rod"] = 0
+
+        if rect_list["rod_box"].colliderect(rect_list["rod_box"]):
+            stability += 0.5
+
+        stability += speed_list["stability"]
+        speed_list["stability"] -= gravity
+
+        if stability > 100:
+            pygame.event.post(SUCCESS)
+        elif stability < 0:
+            pygame.event.post(FAIL)
+
+    return speed_list, stability
+    
+    
+def draw(entity, current_screen, save_slot, button_list, button_call, rect_list, slider_list, text_list, text_call, rad, scroll, stability):
     """
     Draws things to the screen
 
     Parameters:
+        entity (list of Surface object): list of all the entity images
         current_screen (int): the current screen being displayed
-        current_colour (tuple of int): the current colour of the background
+        save_slot (list of dict): list of available save slots
         button_list (dict of Button): list of Button objects
         button_call (dict of list of str): list of names of buttons to call in their respective screens
+        rect_list (dict of Rect object): list of Rect objects that need to be transferred across functions
+        slider_list (dict of Slider): list of Slider objects
         text_list (dict of Text): list of Text objects
-        text_call (dict of list of Text) list of names of Text to call in their respective screens
+        text_call (dict of list of str) list of names of Text to call in their respective screens
+        rad (float): a radian value between 0 and 2pi
+        scroll (int): the scroll offset of the screen
+        stability
 
     Returns:
-        current_colour (int): the colour to change the background to
+        None
     """
 
-    #Checks if the current screen is "main menu" because the title is animated
+    #Draws the title logo
     if current_screen == "main_menu":
-        #Blits the background image
+        #Redraws the background only on some parts of the screen
         pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
         pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
         pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
 
-        #Makes the computer have an easier time by pre-calcaluting a reused value
+        #Gives the computer an easier time by pre-calcaluting a reused value
+        #Uses sin to create a cyclical bob
         bob_cycle = math.sin(rad)
 
         #Blits the logo
         screen.blit((pygame.transform.rotate(entity[1], 2*bob_cycle)), (626, 104)) #Bottom layer
         screen.blit((pygame.transform.rotate(entity[0], 2*bob_cycle)), (624, 100)) #Top layer
 
+    #Draws identically to "main menu" but without the title logo
     elif current_screen == "new_game":
         pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
         pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
+        pygame.draw.rect(screen, (112,146,190), (0, 680, 660, 88)) #More water
         pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
 
-    #Checks if the current screen is "continue game" because the save slots need to be shown
+    #Ditto, but also draws some of the fishing minigame assets
+    elif current_screen == "fishing_game":
+        screen.blit(big_font.render(str(stability), True, WHITE), (500, 100))
+
+        pygame.draw.rect(screen, (109,173,225), (470, 0, 554, 460)) #Sky
+        pygame.draw.rect(screen, (112,146,190), (660, 460, 384, 308)) #Water
+        pygame.draw.rect(screen, (112,146,190), (0, 680, 660, 88)) #More water
+        pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
+
+        pygame.draw.rect(screen, (0, 255, 0), rect_list["fish_box"])
+
+    #Draws the save slots if the current screen is "continue game"
     elif current_screen == "cont_game":
+        #Redraws certain parts of the screen
         pygame.draw.rect(screen, (193, 178, 162), (120, 70, 790, 470)) #Paper
         pygame.draw.rect(screen, (199, 177, 143), (422, 670, 180, 70)) #Back button buffer
 
-        #Creatse a slight offset on the bobs of the buttons
+        #Creates a slight offset on the bobs of each save slot
         offset = 0
+        #Draws and applies the offset to each save slot
         for key in save_slot:
             save_slot[key].show(3*math.sin(2*(rad - offset)))
             offset += 0.3
 
-    #Checks if the current screen is "settings" because special scroll functionality is required
+    #Draws with a special scroll functionality included if the current screen is "settings"
     elif current_screen == "settings":
+        #Draws the background image with the scroll offset
         screen.blit(entity[5], (0, 0 - scroll))
-        #Calls all the buttons except for the first one, which is the back button that gets called later
+
+        #Draws all the buttons except for the first one, which is the back button that gets drawn over everything else
         for key in button_call["settings"][1:]:
             button_list[key].show(scroll)
 
+        #Draws all the text
+        #This is done independently of the default text-drawing behaviour because the whole draw gets cut short for "settings"
         for key in text_call["settings"]:
             text_list[key].show(scroll)
 
+        #Draws all the sliders
         for key in slider_list:
             slider_list[key].show(scroll)
 
@@ -506,31 +656,32 @@ def draw(entity, current_screen, save_slot, button_list, button_call, slider_lis
         #Cuts the function short by returning
         return
 
+    #Draws a blank black screen if the current screen is "quit"
     elif current_screen == "quit":
         screen.fill((10, 10, 10))
 
-    #Creates a slight offset on the bobs of the buttons
+    #Creates a slight offset on the bobs of each button
     offset = 0
 
-    #Adds the bob to all the buttons
+    #Draws and applies the bob to each button
     for key in button_call[current_screen]:
         button_list[key].show(3*math.sin(2*rad - offset))
         offset += 0.3
 
-    #Prints any miscellaneous text
+    #Draws any miscellaneous text
     for key in text_call[current_screen]:
         text_list[key].show()
 
 def music(sound, intro):
     """
-    Controls the music
+    Controls the music and sound effects
 
     Parameters:
         sound (list of Sound object): full list of sounds in the game
         intro (bool): whether the intro has played
 
     Returns:
-        intro (bool): update of the intro status
+        intro (bool): updated status of the intro
     """
 
     if intro:
@@ -542,29 +693,38 @@ def music(sound, intro):
 
 def main(p_flags, save_data, entity):
     """
-    Runs the main program program
+    Runs the main program loop
 
     Parameters:
-        flags
-        save_data
-        entity
-        sound
+        p_flags (dict): various data that persists between instances of the game
+        save_data (list of dict) list of loaded save data
+        entity (list of Surface object): list of all the entity images
+        sound (list of Sound object): list of all the sounds
 
     Returns:
-        None
+        save_status (str): Message to print in the console upon quitting the game
     """
 
+    #Sets the default screen
     current_screen = "main_menu"
     pygame.event.post(SCREEN_SWITCH)
 
-    deg = 0
-    scroll = 0
-    intro = True
-    quitting = False
+    #Declares some useful variables
+    deg = 0 #Degree value, for sin
+    scroll = 0 #Scrol value, to track scrolling
+    intro = True #If the sound intro has played
+    quitting = False #If the game is quitting
 
-    #Fishing minigame flags
-    fishing = False
+    #Declares some fishing minigame flags
     status = "luring"
+
+    speed_list = {
+        "stability": 0,
+        "fish": 0,
+        "rod": 0
+    }
+
+    stability = 10.0
 
     #Creates empty save slot in case the player doesn't load a save file
     active_slot = 0
@@ -583,13 +743,14 @@ def main(p_flags, save_data, entity):
         elif index == 2:
             positioning = (150, 320)
         elif index == 3:
-            positioning = (554, 80) #x component is WIDTH - 100 - 360
+            positioning = (554, 80) #x component is WIDTH - 100 - 320
         elif index == 4:
             positioning = (554, 320)
 
         save_slot[f"save {i}"] = (Button(positioning, (320, 200), (193, 178, 162), (176, 152, 123), f"""File {i+1}: {save_data[i]["caught"]} catches""", f"save {i}"))
 
-        index = index + 1 if index < 5 else 1
+        #This line was supposed to also support multiple pages of save files; I ultimately scrapped the idea
+        index = index + 1 #if index < 5 else 1
 
     #Stores all the buttons that are present in the game
     button_list = {
@@ -600,28 +761,38 @@ def main(p_flags, save_data, entity):
         "back_button": Button((422, 680), (180, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Back", "main_menu"),
         "reset_button": Button((594, 600), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Reset data", "reset"),
         "crash_button": Button((387, 1750), (250, 50), BLACK, (128, 89, 68), "Crash", "crash"),
-        "catch_button": Button((674, 638), (300, 80), CATCH_PRIMARY, CATCH_SECONDARY, "Catch!", "catch")
+        "catch_button": Button((674, 668), (300, 80), CATCH_PRIMARY, CATCH_SECONDARY, "Catch!", "catch"),
+        "save_button": Button((50, 698), (250, 50), MAIN_PRIMARY, MAIN_SECONDARY, "Save", "saving")
     }
 
     #Stores the list of buttons to display in each screen
     button_call = {
         "main_menu": ["new_game_button", "cont_game_button", "settings_button", "quit_button"],
-        "new_game": ["catch_button"],
+        "new_game": ["catch_button", "save_button"],
+        "fishing_game": [],
         "cont_game": ["back_button"],
         "settings": ["back_button", "reset_button", "crash_button"],
         "quit": []
     }
 
+    #Stores the list of pygame.Rect() objects that need to be transferred between functions
+    rect_list = {
+        "stability_box": pygame.Rect(500, 200, 50, 2*stability),
+        "fish_box": pygame.Rect(750, 0, 30, 80),
+        "rod_box": pygame.Rect(750, 0, 30, 30)
+    }
+
     #Stores the list of sliders present in the game
     slider_list = {
-        "music_vol_slider": Slider((494, 100), 300, 0, 100, 100, 0),
-        "sfx_vol_slider": Slider((494, 200), 300, 0, 100, 100, 1)
+        "music_vol_slider": Slider((494, 100), 300, 0, 100, p_flags["music_vol"], 0),
+        "sfx_vol_slider": Slider((494, 200), 300, 0, 100, p_flags["sfx_vol"], 1)
     }
+
     #No slider_call dictionary because they only appear in the settings menu anyways
 
     #Stores all the text that's present in the game
     text_list = {
-        "exclamation_text": Text("Text", (300, 450), "center"),
+        "exclamation_text": Text("!", (300, 450), "center"),
         "music_vol_text": Text("Music Volume", (180, 120), "left"),
         "sfx_vol_text": Text("Effect Volume", (180, 220), "left"),
         "saving_text": Text("Saving...", (512, 384), "center")
@@ -631,6 +802,7 @@ def main(p_flags, save_data, entity):
     text_call = {
         "main_menu": [],
         "new_game": [],
+        "fishing_game": [],
         "cont_game": [],
         "settings": ["music_vol_text", "sfx_vol_text"],
         "quit": ["saving_text"]
@@ -654,11 +826,12 @@ def main(p_flags, save_data, entity):
 
         #Input handling is done first so that any changes caused by them aren't delayed to the next frame (from event handling)
         #Gets input states
+        keys = pygame.key.get_pressed()
         mouse_states = pygame.mouse.get_pressed()
         mouse_pos = pygame.mouse.get_pos()
 
         #Processes held mouse inputs
-        on_mouse_down(current_screen, slider_list, mouse_states, mouse_pos)
+        on_mouse_held(current_screen, slider_list, mouse_states, mouse_pos)
 
         #Handles pygame events
         for event in pygame.event.get():
@@ -668,18 +841,39 @@ def main(p_flags, save_data, entity):
 
             #Processes keyboard input
             elif event.type == pygame.KEYDOWN:
+                print("key")
+                #Checks if esc was pressed, used similarly to the back button
                 if event.key == pygame.K_ESCAPE:
+                    #Acts as the quit button if the current screen is "main menu"
                     if current_screen == "main_menu":
                         (pygame.QUIT, 10)
                         return current_screen
 
-                    if current_screen == "new_game":
-                        #Ends the fishing minigame by just pretending the player lost
+                    #Acts as the save button if the current screen is "new game"
+                    elif current_screen == "new_game":
+                        button_list["save_button"].dest
+
+                    #Ends the fishing minigame by just pretending the player lost if the current screen is "fishing game"
+                    elif current_screen == "fishing_game":
                         pygame.event.post(FAIL)
 
                     else:
                         current_screen = "main_menu"
                         pygame.event.post(SCREEN_SWITCH)
+                
+                #Checks if the spacebar was pressed
+                elif event.key == pygame.K_SPACE:
+                    #Checks if the current screen is "fishing game" to react to the "snag" phase
+                    #Both this and the mouse click can be used
+                    if current_screen == "fishing_game":
+                        if status == "snag":
+                            #Disables the failure check
+                            pygame.time.set_timer(FAIL, 0)
+                            #Moves the fishing minigame onto the next phase
+                            pygame.event.post(REEL)
+                        #Otherwise, counts it as the player prematurely reeling the line back in
+                        else:
+                            pygame.event.post(FAIL)
 
             #Processes mouse input
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -689,19 +883,32 @@ def main(p_flags, save_data, entity):
 
                 print(event.pos)
 
-                if current_screen == "new_game":
-                    if fishing and status == "snag":
+                #Checks if the current screen is "fishing game" to react to the "snag" phase
+                #Both this and the keyboard press can be used
+                if current_screen == "fishing_game":
+                    if status == "snag":
                         #Disables the failure check
                         pygame.time.set_timer(FAIL, 0)
                         #Moves the fishing minigame onto the next phase
-                        pygame.time.set_timer(REEL)
-                        print("nice job")
+                        pygame.event.post(REEL)
+                    #Otherwise, counts it as the player prematurely reeling the line back in
+                    else:
+                        pygame.event.post(FAIL)
 
                 #Checks if the current screen is "continue game" to check save slot buttons
                 if current_screen == "cont_game":
                     for key in save_slot:
                         if save_slot[key].hovering:
                             pygame.event.post(save_slot[key].dest)
+
+                #Checks if the current screen is "settings" to apply the "press" behaviour of sliders
+                if current_screen == "settings":
+                    for key in slider_list:
+                        #Checks if the slider knob is being hovered over
+                        if slider_list[key].hovering:
+                            slider_list[key].adjusted = True
+                            #Plays the sound effect
+                            pygame.event.post(PRESS)
 
                 #Default behaviour, checking for clicks on a button
                 for key in button_call[current_screen]:
@@ -712,41 +919,90 @@ def main(p_flags, save_data, entity):
             #Processes scroll wheel input
             elif event.type == pygame.MOUSEWHEEL:
                 scroll -= 50*event.y
+
+                #Confines the scroll value between 0 and 1400
                 if scroll < 0:
                     scroll = 0
                 elif scroll > 1400:
                     scroll = 1400
 
             #Loops the music in game after the intro plays
-            elif event.type == LOOPMUSIC:
-                pygame.mixer.Channel(0).play(sound[1], -1)
+            elif event.type == MUSIC:
+                #Loops the main background music
+                if event.sound == "loop":
+                    pygame.mixer.Channel(0).play(sound[1], -1)
+
+                #Plays the sound of a button pressing
+                elif event.sound == "press":
+                    pygame.mixer.Channel(1).play(sound[2])
+
+                #Plays the sound of a save file being laoded
+                elif event.sound == "load":
+                    pygame.mixer.Channel(1).play(sound[3])
+                
+                #Plays the sound of the fishing minigame beginning
+                elif event.sound == "splash":
+                    pygame.mixer.Channel(1).play(sound[4])
+
+                #Plays the sound of the fishing minigame beginning
+                elif event.sound == "exclamation":
+                    pygame.mixer.Channel(1).play(sound[5])
 
             #Processes button behaviour upon clicking one
             elif event.type == BUTTON:
+
                 #Checks if a save file is being loaded
                 if event.dest[:4] == "save":
+                    #Plays the special loading sound effect
+                    pygame.event.post(LOAD)
+
+                    #Immediately transitions to the new game screen
                     current_screen = "new_game"
-                    active_slot = event.dest[5]
-                    active_save = save_data[int(event.dest[5])]
                     pygame.event.post(SCREEN_SWITCH)
+
+                    #Sets the selected file as the active file
+                    #The 6th letter (and onwards) is the number of the save file
+                    active_slot = int(event.dest[5:]) - 1
+                    active_save = save_data[int(event.dest[5:])]
+                    continue
+
+                #Play the default sound effect (given a save isn't being loaded)
+                pygame.event.post(PRESS)
+
+                #Checks if progress is being saved
+                if event.dest == "saving":
+                    #Transitions to the main menu
+                    current_screen = "main_menu"
+                    pygame.event.post(SCREEN_SWITCH)
+
+                    #Saves the active save file to the proper spot in the rest of the save data
+                    save_data[active_slot] = active_save
                     continue
 
                 #Checks for a data reset of the game
                 if event.dest == "reset":
+                    #Creates empty version of save slot
+                    empty_save = {
+                        "fish": [""],
+                        "caught": 0,
+                        "crashed": False
+                    }
+
                     #Wipes all save files
                     for file_name in os.listdir("save"):
-                        os.remove("save\\" + file_name)
+                        json.dump(empty_save, open("save\\" + file_name, "w"))
 
                     #Returns persistent data to default state
-                    p_flags = {"state": 0, "quits": 0, "drained": False, "crashed": False}
+                    p_flags = {"music_vol": 100.0, "sfx_vol": 100.0, "state": 0, "quits": 0, "drained": False, "crashed": False}
 
-                    #Returns confirmation and closes the game
+                    #Returns confirmation and closes the game with default behaviour
                     print("Succesfully reset data.")
                     pygame.event.post(DATA_RESET)
                     continue
 
                 #Checks if the player willingly chose to crash the game
                 if event.dest == "crash":
+                    #Terminates the game loop and sends a message in console
                     return "ERROR: could not save persistent data. \nWhatever you did, please do not do it again."
 
                 #Checks if the fishing minigame is about to begin
@@ -761,27 +1017,52 @@ def main(p_flags, save_data, entity):
 
                 #Otherwise, changes the screen
                 current_screen = event.dest
-
                 #Calls the controller for blitting objects once upon transition
                 pygame.event.post(SCREEN_SWITCH)
 
             #Processes slider behaviour upon clicking the knob
             elif event.type == SLIDER:
                 #Updates the volume of the proper sound channel
-                pygame.mixer.Channel(event.target).set_volume(event.value / 100.0) #Float value so python doesn't truncate to int like it did for that one CCC question I did that one time (Please don't mark this comment, I just wanted to share my grievance)
+                pygame.mixer.Channel(event.target).set_volume(event.value / 100.0)
+                
+                #Saves the new value to persistent data
+                if event.target == 0:
+                    p_flags["music_vol"] = event.value
+                elif event.target == 1:
+                    p_flags["sfx_vol"] = event.value
 
+            #Checks if the fishing minigame status is being updated
             elif event.type == FISHING:
+                #Always calls a redraw
+                pygame.event.post(SCREEN_SWITCH)
+
+                #Makes sure that the fishing minigame is still running, as it's possible to prematurely quit out
+                if current_screen != "fishing":
+                    return
+
+                #Checks which phase the minigame is currently in
                 if event.status == "start":
-                    fishing = True
+                    #Sets the current screen to "fishing game" and starts the first phase
+                    current_screen = "fishing_game"
                     status = "luring"
+
+                    #Sets a timer for moving onto the next phase
                     luring_time = int(random.uniform(2, 8) * 1000) #Multiplied by 1000 to convert to ms
                     pygame.time.set_timer(SNAG, luring_time, True)
 
+                    #Plays the sound effect
+                    pygame.event.post(SPLASH)
+
                 elif event.status == "snag":
+                    #Sets a timer for the player to react and updates the phase
                     pygame.time.set_timer(FAIL, 1000, True)
                     status = "snag"
 
+                    #Plays the sound effect
+                    pygame.event.post(EXCLAMATION)
+
                 elif event.status == "reeling":
+                    #Updates the phase
                     status = "reeling"
 
                 elif event.status == "end":
@@ -791,17 +1072,22 @@ def main(p_flags, save_data, entity):
                             rng = random.randint(1, 100)
                             if fish_list[key].rate >= rng:
                                 active_save["fish"].append(fish_list[key])
+
+                                if key == "glitch_scallop":
+                                    active_save["crashed"] = True
+                                    p_flags["state"] = 1
                                 break
 
                         #Increments the number of fish caught
                         active_save["caught"] += 1
 
                     #Ends the minigmae regardless of outcome
-                    fishing = False
+                    current_screen = "new_game"
 
+            #Checks if the game is calling for a one-time redraw, usually upon switching screens
             elif event.type == SWITCH:
                 #Additionally draws things that are drawn onto the screen only once upon transition
-                if current_screen == "main_menu" or current_screen == "new_game":
+                if current_screen == "main_menu" or current_screen == "new_game" or current_screen == "fishing_game":
                     pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
                     pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
                     screen.blit(entity[2], (0, 0))
@@ -816,7 +1102,6 @@ def main(p_flags, save_data, entity):
 
         #Processes bobbing cycle for various objects
         deg = deg + 1 if deg < 360 else 0
-
         #Converts deg to radian
         rad = math.radians(deg)
 
@@ -826,11 +1111,20 @@ def main(p_flags, save_data, entity):
         #Processes screen updating
         update(current_screen, save_slot, button_list, button_call, slider_list)
 
+        #Proceses updating specifically for the fishing minigame
+        if current_screen == "fishing_game":
+            #Enables held key behaviour here because it's the only time it's used
+            if keys[pygame.K_SPACE]:
+                speed_list["rod"] += 1
+            
+            speed_list, stability = fishing_update(status, rect_list, speed_list, text_list, stability)
+
         #Processes screen drawing
-        draw(entity, current_screen, save_slot, button_list, button_call, slider_list, text_list, text_call, rad, scroll)
+        draw(entity, current_screen, save_slot, button_list, button_call, rect_list, slider_list, text_list, text_call, rad, scroll, stability)
 
         pygame.display.update()
 
 #Run! along with all the requisite data
 save_status = main(persistent_flags, save_data, entity)
+#Prints a message to console depending on how the game was exited
 print(save_status)

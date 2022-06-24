@@ -1,11 +1,13 @@
 # Scallops
-A game about a blob on a boat. However, not everything functions as it should...
+A game about fishing on a tropical island. However, not everything functions as it should...\
+Well, for one thing, there are only scallops.\
+\
+Just don't break anything.
 
 ## Cool stuff
-This game doesn't function like your typical game.
-You'll *need* to restart the program, not just play it as normal.
-
-Dig around, see what you can find.
+This game doesn't behave like your normal game.\
+Sometimes, it'll crash. Don't worry: that's supposed to happen.\
+Just reboot the game, and keep playing.
 
 ## Play it
 
@@ -14,12 +16,16 @@ Just unzip the package somewhere (preferably in its own folder) and the game wil
 
 ## Bug terrarium
 
-There are no bugs, they all died :(
+Depending on your hardware, the main menu might lag a bit.\
+I tried to mitigate as much as possible, but it could still be a problem for you.
 
 ## Cheats
 
 Scrolling to the bottom of the Settings page and clicking the "Crash" button lets you quit the game without saving.\
 Sometimes useful.
+
+The entire game revolves around fishing up the glitched scallops.\
+Thus, if you just want to get through the content quickly, keep adding "glitch_scallop" into the fish array of your save file and rebooting the game.
 
 ## IT department
 
