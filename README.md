@@ -1,13 +1,31 @@
 # Scallops
+
 A game about fishing on a tropical island. However, not everything functions as it should...\
 Well, for one thing, there are only scallops.\
 \
 Just don't break anything.
 
 ## Cool stuff
-This game doesn't behave like your normal game.\
-Sometimes, it'll crash. Don't worry: that's supposed to happen.\
-Just reboot the game, and keep playing.
+
+What a nice fishing simulator!\
+There are just three parts to it:
+
+### Lure
+
+Wait patiently for a fish to nibble on your hook. It could take a while....
+
+### Snag
+
+There's the bite! Quickly click the mouse or press spacebar in time to snag it good onto your hook!
+
+### Reel
+
+Now hold on for dear life and follow the fish's movement! Keep the brown inside the green and tire the fish out.
+
+
+Sometimes, the game will crash. Don't worry: that's supposed to happen.\
+Just reboot the game, and keep playing.\
+(Unfortunately, as it stands, the crashes don't serve any purpose because I didn't have enough time to flesh out a story. Sorry)
 
 ## Play it
 
@@ -24,8 +42,7 @@ I tried to mitigate as much as possible, but it could still be a problem for you
 Scrolling to the bottom of the Settings page and clicking the "Crash" button lets you quit the game without saving.\
 Sometimes useful.
 
-The entire game revolves around fishing up the glitched scallops.\
-Thus, if you just want to get through the content quickly, keep adding "glitch_scallop" into the fish array of your save file and rebooting the game.
+There's really not much to see in the game, just try out the save file system and have fun fishing. Not much else.
 
 ## IT department
 

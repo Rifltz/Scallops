@@ -21,7 +21,7 @@ for file_name in os.listdir("save"):
 
 #Creates an empty save file
 empty_save = {
-    "fish": [""],
+    "fish": [],
     "caught": 0,
     "crashed": False
 }
@@ -67,6 +67,8 @@ PRESS = pygame.event.Event(MUSIC, sound = "press")
 LOAD = pygame.event.Event(MUSIC, sound = "load")
 SPLASH = pygame.event.Event(MUSIC, sound = "splash")
 EXCLAMATION = pygame.event.Event(MUSIC, sound = "exclamation")
+ACQUIRE = pygame.event.Event(MUSIC, sound = "acquire")
+MISS = pygame.event.Event(MUSIC, sound = "miss")
 
 BUTTON = pygame.USEREVENT + 2
 SLIDER = pygame.USEREVENT + 3
@@ -74,7 +76,7 @@ SLIDER = pygame.USEREVENT + 3
 FISHING = pygame.USEREVENT + 4
 START = pygame.event.Event(FISHING, status = "start")
 SNAG = pygame.event.Event(FISHING, status = "snag")
-REEL = pygame.event.Event(FISHING, stauts = "reeling")
+REEL = pygame.event.Event(FISHING, status = "reeling")
 SUCCESS = pygame.event.Event(FISHING, status = "end", success = True)
 FAIL = pygame.event.Event(FISHING, status = "end", success = False)
 
@@ -82,7 +84,7 @@ SWITCH = pygame.USEREVENT + 5
 SCREEN_SWITCH = pygame.event.Event(SWITCH)
 
 QUITTING = pygame.USEREVENT + 6
-DATA_RESET = pygame.event.Event(QUITTING)
+DATA_SAVE = pygame.event.Event(QUITTING)
 
 #Colour bank
 WHITE = (255, 255, 255)
@@ -223,8 +225,8 @@ class Slider:
 
         self.value = initial_value
         self.channel = channel
-        #The proportion between the bounds that the value takes, times the width of the slider
-        self.sliderx = (self.value - self.l_bound) / (self.r_bound - self.l_bound) * self.width - 20
+        #The proportion between the bounds that the value takes, times the width of the slider (minus buffer), plus the padding
+        self.sliderx = (self.value - self.l_bound) / (self.r_bound - self.l_bound) * (self.width - 40) + 20
 
         #Mirrors the position of the slider, with some extra constants to accomodate the larger surface and the Rect coordinate system
         self.hitbox = pygame.Rect(self.x + self.sliderx - 20, self.y - 10, 40, 60)
@@ -399,6 +401,7 @@ class Scallop:
         self.description = description
         self.rate = catch_rate
 
+    #I was supposed to make an inventory system that would display all the fish you caught; unfortunately, I didn't have the time
     def display(self, mouse_pos, x, y):
         """
         Displays the scallop in the proper inventory position
@@ -495,15 +498,11 @@ def fishing_update(status, rect_list, speed_list, text_list, stability):
         rect_list (dict of Rect object): list of Rect objects that need to be transferred across functions
         speed_list (dict of int): list of speeds to track for the fishing minigame
         text_list (dict of Text): list of Text objects
-        fish_speed (int): speed of the fish box
         stability (int): stability of the catch; 100 is success, 0 is fail
         
     Returns:
         None
     """
-
-    #Number to control the constant deceleration of every speed variable
-    gravity = 0.1
 
     #Nothing happenens during the "luring" phase
 
@@ -514,52 +513,62 @@ def fishing_update(status, rect_list, speed_list, text_list, stability):
     #Runs the main minigame during the "reeling" phase
     elif status == "reeling":
 
-        speed_list["fish"] += random.uniform(-1, 3)
-        speed_list["fish"] -= gravity
+        #Randomly changes the fish box speed
+        speed_list["fish"] += random.uniform(-2, 2)
 
         #Caps the fish box speed
-        if speed_list["fish"] > 10:
-            speed_list["fish"] = 10
-        elif speed_list["fish"] < -10:
-            speed_list["fish"] = -10
+        if speed_list["fish"] > 10: speed_list["fish"] = 10
+        elif speed_list["fish"] < -10: speed_list["fish"] = -10
 
-        rect_list["fish_box"].y += fish_speed
+        #Updates the fish box placement (subtraction because of the reverse y axis)
+        rect_list["fish_box"].y -= speed_list["fish"]
 
         #Caps the fish box placement
-        if rect_list["fish_box"].y > 500:
-            rect_list["fish_box"].y = 500
+        if rect_list["fish_box"].y > 420:
+            rect_list["fish_box"].y = 420
             speed_list["fish"] = 0
+
         elif rect_list["fish_box"].y < 100:
             rect_list["fish_box"].y = 100
-            fish_speed = 0
+            speed_list["fish"] = 0
 
-        speed_list["rod"] -= gravity
+        #Decelerates the rod box speed (the acceleration is controlled by spacebar/mouse)
+        speed_list["rod"] -= 2.5
 
-        if speed_list["rod"] > 8:
-            speed_list["rod"] = 8
-        elif speed_list["rod"] < -8:
-            speed_list["rod"] = -8
+        #Caps the rod speed
+        if speed_list["rod"] > 8: speed_list["rod"] = 8
+        elif speed_list["rod"] < -8: speed_list["rod"] = -8
         
-        rect_list["rod_box"].y += speed_list["rod"]
+        #Updates the rod box placement
+        rect_list["rod_box"].y -= speed_list["rod"]
 
         #Caps the rod box placement
-        if rect_list["rod_box"].y > 500:
-            rect_list["rod_box"].y = 500
+        if rect_list["rod_box"].y > 470:
+            rect_list["rod_box"].y = 470
             speed_list["rod"] = 0
-        elif rect_list["fish_box"].y < 100:
+        elif rect_list["rod_box"].y < 100:
             rect_list["rod_box"].y = 100
             speed_list["rod"] = 0
 
-        if rect_list["rod_box"].colliderect(rect_list["rod_box"]):
+        #Checks if the rod box and fish box are touching, to increase stability
+        if rect_list["rod_box"].colliderect(rect_list["fish_box"]):
             stability += 0.5
+        else:
+            stability -= 0.2
 
-        stability += speed_list["stability"]
-        speed_list["stability"] -= gravity
+        #Updates the stability bar's height and anchors its bottom left corner
+        rect_list["stability_box"].h = 2*stability
+        rect_list["stability_box"].bottomleft = (900, 400)
 
+        #Checks if the stability has reached a win/loss threshold
+        #If so, signals the according result and plays a sound effect
         if stability > 100:
             pygame.event.post(SUCCESS)
+            pygame.event.post(ACQUIRE)
+
         elif stability < 0:
             pygame.event.post(FAIL)
+            pygame.event.post(MISS)
 
     return speed_list, stability
     
@@ -617,7 +626,12 @@ def draw(entity, current_screen, save_slot, button_list, button_call, rect_list,
         pygame.draw.rect(screen, (112,146,190), (0, 680, 660, 88)) #More water
         pygame.draw.circle(screen, (222, 210, 75), (1004, -50), 200) #Sun
 
-        pygame.draw.rect(screen, (0, 255, 0), rect_list["fish_box"])
+        pygame.draw.rect(screen, (157, 166, 168), (740, 100, 50, 400)) #Fishing bar background
+        pygame.draw.rect(screen, (157, 166, 168), (900, 200, 40, 200)) #Stability bar background
+
+        pygame.draw.rect(screen, (98, 227, 119), rect_list["fish_box"])
+        pygame.draw.rect(screen, (186, 119, 97), rect_list["rod_box"])
+        pygame.draw.rect(screen, (209, 142, 230), rect_list["stability_box"])
 
     #Draws the save slots if the current screen is "continue game"
     elif current_screen == "cont_game":
@@ -713,26 +727,19 @@ def main(p_flags, save_data, entity):
     deg = 0 #Degree value, for sin
     scroll = 0 #Scrol value, to track scrolling
     intro = True #If the sound intro has played
-    quitting = False #If the game is quitting
 
     #Declares some fishing minigame flags
     status = "luring"
+    stability = 20.0
 
     speed_list = {
-        "stability": 0,
         "fish": 0,
         "rod": 0
     }
 
-    stability = 10.0
-
-    #Creates empty save slot in case the player doesn't load a save file
+    #Defaults to using save slot 1 in case the player doesn't load one themself
     active_slot = 0
-    active_save = {
-        "fish": [""],
-        "caught": 0,
-        "crashed": False
-    }
+    active_save = save_data[0]
 
     #Stores buttons corresponding to each save slot
     save_slot = {}
@@ -777,9 +784,9 @@ def main(p_flags, save_data, entity):
 
     #Stores the list of pygame.Rect() objects that need to be transferred between functions
     rect_list = {
-        "stability_box": pygame.Rect(500, 200, 50, 2*stability),
-        "fish_box": pygame.Rect(750, 0, 30, 80),
-        "rod_box": pygame.Rect(750, 0, 30, 30)
+        "fish_box": pygame.Rect(740, 220, 50, 60),
+        "rod_box": pygame.Rect(750, 235, 30, 30),
+        "stability_box": pygame.Rect(900, 400, 40, 2*stability)
     }
 
     #Stores the list of sliders present in the game
@@ -792,7 +799,9 @@ def main(p_flags, save_data, entity):
 
     #Stores all the text that's present in the game
     text_list = {
-        "exclamation_text": Text("!", (300, 450), "center"),
+        "exclamation_text": Text("!", (290, 510), "center"),
+        "catch_text": Text("", (674, 300), "center"),
+        "desc_text": Text("", (674, 330), "center"),
         "music_vol_text": Text("Music Volume", (180, 120), "left"),
         "sfx_vol_text": Text("Effect Volume", (180, 220), "left"),
         "saving_text": Text("Saving...", (512, 384), "center")
@@ -801,7 +810,7 @@ def main(p_flags, save_data, entity):
     #Stores the list of text to display in each screen
     text_call = {
         "main_menu": [],
-        "new_game": [],
+        "new_game": ["catch_text", "desc_text"],
         "fishing_game": [],
         "cont_game": [],
         "settings": ["music_vol_text", "sfx_vol_text"],
@@ -810,10 +819,10 @@ def main(p_flags, save_data, entity):
 
     #Stores the types of fish in the game
     fish_list = {
-        "glitch_scallop": Scallop(entity[3], """Scal&A%"   l---   op  --0-+   """, "Uh oh", 2),
-        "pearl_scallop": Scallop(entity[3], "Pearl Scallop", "Not an actual species, but hey! It's got a pearl!", 8),
-        "queen_scallop": Scallop(entity[3], "Queen Scallop", "Regal in both appearance and in taste.", 22),
-        "bay_scallop": Scallop(entity[3], "Bay Scallop", "A common scallop. Makes for a nice meal.", 100)
+        "glitch scallop": Scallop(entity[3], """Scal&A%"   l---   op  --0-+   """, "Uh oh", 2),
+        "pearl scallop": Scallop(entity[3], "Pearl Scallop", "Not an actual species, but hey! It's got a pearl!", 8),
+        "queen scallop": Scallop(entity[3], "Queen Scallop", "Regal in both appearance and in taste.", 22),
+        "bay scallop": Scallop(entity[3], "Bay Scallop", "A common scallop. Makes for a nice meal.", 100)
     }
 
     #Boilerplate statement for infinite while loop
@@ -841,39 +850,41 @@ def main(p_flags, save_data, entity):
 
             #Processes keyboard input
             elif event.type == pygame.KEYDOWN:
-                print("key")
                 #Checks if esc was pressed, used similarly to the back button
                 if event.key == pygame.K_ESCAPE:
                     #Acts as the quit button if the current screen is "main menu"
                     if current_screen == "main_menu":
-                        (pygame.QUIT, 10)
-                        return current_screen
+                        pygame.event.post(DATA_SAVE)
+                        continue
 
                     #Acts as the save button if the current screen is "new game"
                     elif current_screen == "new_game":
-                        button_list["save_button"].dest
+                        pygame.event.post(button_list["save_button"].dest)
 
                     #Ends the fishing minigame by just pretending the player lost if the current screen is "fishing game"
                     elif current_screen == "fishing_game":
                         pygame.event.post(FAIL)
 
+                    #Defaults to returning to the main menu
                     else:
                         current_screen = "main_menu"
                         pygame.event.post(SCREEN_SWITCH)
                 
                 #Checks if the spacebar was pressed
                 elif event.key == pygame.K_SPACE:
-                    #Checks if the current screen is "fishing game" to react to the "snag" phase
+                    #Checks if the current screen is "fishing game" to control the phases
                     #Both this and the mouse click can be used
                     if current_screen == "fishing_game":
-                        if status == "snag":
+                        #Checks if the player is prematurely reeling the line back in
+                        if status == "luring":
+                            pygame.event.post(FAIL)
+                            
+                        #Checks if the player is reacting to the "snag" phase
+                        elif status == "snag":
                             #Disables the failure check
                             pygame.time.set_timer(FAIL, 0)
                             #Moves the fishing minigame onto the next phase
                             pygame.event.post(REEL)
-                        #Otherwise, counts it as the player prematurely reeling the line back in
-                        else:
-                            pygame.event.post(FAIL)
 
             #Processes mouse input
             elif event.type == pygame.MOUSEBUTTONDOWN:
@@ -881,19 +892,19 @@ def main(p_flags, save_data, entity):
                 if event.button != 1:
                     continue
 
-                print(event.pos)
-
-                #Checks if the current screen is "fishing game" to react to the "snag" phase
+                #Checks if the current screen is "fishing game" to control the phases
                 #Both this and the keyboard press can be used
                 if current_screen == "fishing_game":
-                    if status == "snag":
+                    #Checks if the player is prematurely reeling the line back in
+                    if status == "luring":
+                        pygame.event.post(FAIL)
+
+                    #Checks if the player is reacting to the "snag" phase
+                    elif status == "snag":
                         #Disables the failure check
                         pygame.time.set_timer(FAIL, 0)
                         #Moves the fishing minigame onto the next phase
                         pygame.event.post(REEL)
-                    #Otherwise, counts it as the player prematurely reeling the line back in
-                    else:
-                        pygame.event.post(FAIL)
 
                 #Checks if the current screen is "continue game" to check save slot buttons
                 if current_screen == "cont_game":
@@ -944,9 +955,17 @@ def main(p_flags, save_data, entity):
                 elif event.sound == "splash":
                     pygame.mixer.Channel(1).play(sound[4])
 
-                #Plays the sound of the fishing minigame beginning
+                #Plays the sound of the fishing minigame reaching its "snag" phase
                 elif event.sound == "exclamation":
                     pygame.mixer.Channel(1).play(sound[5])
+
+                #Plays the sound of the fishing minigame ending successfully
+                elif event.sound == "acquire":
+                    pygame.mixer.Channel(1).play(sound[6])
+
+                #Plays the sound of the fishing minigame ending unsuccessfully
+                elif event.sound == "acquire":
+                    pygame.mixer.Channel(1).play(sound[7])
 
             #Processes button behaviour upon clicking one
             elif event.type == BUTTON:
@@ -962,7 +981,7 @@ def main(p_flags, save_data, entity):
 
                     #Sets the selected file as the active file
                     #The 6th letter (and onwards) is the number of the save file
-                    active_slot = int(event.dest[5:]) - 1
+                    active_slot = int(event.dest[5:])
                     active_save = save_data[int(event.dest[5:])]
                     continue
 
@@ -977,27 +996,30 @@ def main(p_flags, save_data, entity):
 
                     #Saves the active save file to the proper spot in the rest of the save data
                     save_data[active_slot] = active_save
+
+                    #Updates the text on the save slot button
+                    save_slot[f"save {active_slot}"].text = font.render(f"""File {active_slot + 1}: {save_data[active_slot]["caught"]} catches""", True, WHITE)
                     continue
 
                 #Checks for a data reset of the game
                 if event.dest == "reset":
                     #Creates empty version of save slot
                     empty_save = {
-                        "fish": [""],
+                        "fish": [],
                         "caught": 0,
                         "crashed": False
                     }
 
                     #Wipes all save files
                     for file_name in os.listdir("save"):
-                        json.dump(empty_save, open("save\\" + file_name, "w"))
+                        os.remove("save\\" + file_name)
 
                     #Returns persistent data to default state
                     p_flags = {"music_vol": 100.0, "sfx_vol": 100.0, "state": 0, "quits": 0, "drained": False, "crashed": False}
 
                     #Returns confirmation and closes the game with default behaviour
                     print("Succesfully reset data.")
-                    pygame.event.post(DATA_RESET)
+                    pygame.event.post(DATA_SAVE)
                     continue
 
                 #Checks if the player willingly chose to crash the game
@@ -1007,6 +1029,8 @@ def main(p_flags, save_data, entity):
 
                 #Checks if the fishing minigame is about to begin
                 if event.dest == "catch":
+                    #Updates the current screen and signals the start of the fishing minigame
+                    current_screen = "fishing_game"
                     pygame.event.post(START)
                     continue
 
@@ -1037,13 +1061,12 @@ def main(p_flags, save_data, entity):
                 pygame.event.post(SCREEN_SWITCH)
 
                 #Makes sure that the fishing minigame is still running, as it's possible to prematurely quit out
-                if current_screen != "fishing":
-                    return
+                if current_screen != "fishing_game":
+                    continue
 
                 #Checks which phase the minigame is currently in
                 if event.status == "start":
-                    #Sets the current screen to "fishing game" and starts the first phase
-                    current_screen = "fishing_game"
+                    #Starts the first phase
                     status = "luring"
 
                     #Sets a timer for moving onto the next phase
@@ -1054,8 +1077,8 @@ def main(p_flags, save_data, entity):
                     pygame.event.post(SPLASH)
 
                 elif event.status == "snag":
-                    #Sets a timer for the player to react and updates the phase
-                    pygame.time.set_timer(FAIL, 1000, True)
+                    #Sets a timer for the player to react to and updates the phase
+                    pygame.time.set_timer(FAIL, 500, True)
                     status = "snag"
 
                     #Plays the sound effect
@@ -1069,35 +1092,66 @@ def main(p_flags, save_data, entity):
                     #Checks if the player succeeded to catch a fish
                     if event.success:
                         for key in fish_list:
+                            #Randomly determines what fish the player gets from their catch
+                            #It works in the sense that there is an order in which the fish are checked: a number 1–100 is rolled and if the catch rate is higher, that's what the player gets; otherwise, move on to the next fish
                             rng = random.randint(1, 100)
                             if fish_list[key].rate >= rng:
-                                active_save["fish"].append(fish_list[key])
+                                active_save["fish"].append(key)
 
-                                if key == "glitch_scallop":
+                                #Tells the player what they caught
+                                text_list["catch_text"].text = big_font.render(f"You caught a {key}!", True, WHITE)
+                                text_list["desc_text"].text = font.render(fish_list[key].description, True, WHITE)
+
+                                #Induces a "crash" if the player catchs a glitch scallop
+                                if key == "glitch scallop":
                                     active_save["crashed"] = True
                                     p_flags["state"] = 1
-                                break
+                                    pygame.event.post(DATA_SAVE)
 
                         #Increments the number of fish caught
                         active_save["caught"] += 1
 
-                    #Ends the minigmae regardless of outcome
+                    else:
+                        #Patronizes the player for their lack of scallops
+                        text_list["catch_text"].text = big_font.render(f"You didn't catch a scallop...", True, WHITE)
+                        text_list["desc_text"].text = font.render("Rome wasn't built in a day! Why not try again?", True, WHITE)
+
+                    #Resets the variables and ends the minigmae regardless of outcome
                     current_screen = "new_game"
+
+                    stability = 20.0
+
+                    speed_list = {
+                        "fish": 0,
+                        "rod": 0,
+                        "stability": 0
+                    }
+
+                    rect_list["fish_box"].topleft = (740, 220)
+                    rect_list["rod_box"].topleft = (750, 235)
+                    rect_list["stability_box"].bottomleft = (900, 400)
 
             #Checks if the game is calling for a one-time redraw, usually upon switching screens
             elif event.type == SWITCH:
-                #Additionally draws things that are drawn onto the screen only once upon transition
+                #Draws things that are drawn onto the screen only once upon transition
                 if current_screen == "main_menu" or current_screen == "new_game" or current_screen == "fishing_game":
                     pygame.draw.rect(screen, (109,173,225), (0, 0, 1024, 460)) #Sky
                     pygame.draw.rect(screen, (112,146,190), (0, 460, 1024, 308)) #Water
-                    screen.blit(entity[2], (0, 0))
+                    screen.blit(entity[2], (0, 0)) #Island
+                    screen.blit(entity[6], (240, 520)) #Therese
 
                 elif current_screen == "cont_game":
                     screen.fill((199, 177, 143)) #Background
                     screen.blit(entity[4], (0, 0)) #Book
 
             elif event.type == QUITTING:
+                #Saves the persistent flags
                 json.dump(p_flags, open("flag.json", "w"))
+
+                #Saves the save files
+                for i in range(len(save_data)):
+                    json.dump(save_data[i], open(f"save\\save {i+1}.json", "w"))
+
                 pygame.time.set_timer(pygame.QUIT, 10, True)
 
         #Processes bobbing cycle for various objects
@@ -1113,9 +1167,9 @@ def main(p_flags, save_data, entity):
 
         #Proceses updating specifically for the fishing minigame
         if current_screen == "fishing_game":
-            #Enables held key behaviour here because it's the only time it's used
-            if keys[pygame.K_SPACE]:
-                speed_list["rod"] += 1
+            #Enables both held input behaviours to ensure they don't overlap
+            if keys[pygame.K_SPACE] or mouse_states[0]:
+                speed_list["rod"] += 5.0
             
             speed_list, stability = fishing_update(status, rect_list, speed_list, text_list, stability)
 
